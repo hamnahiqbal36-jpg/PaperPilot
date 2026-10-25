@@ -1,0 +1,281 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PaperPilot | Academic Resource Hub</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="nav-shell">
+    <a class="brand" href="#" data-home>
+      <img class="brand-logo" src="paperpilot-academic-logo-main.png" alt="PaperPilot Academic Resource Hub">
+    </a>
+
+    <nav class="primary-nav" aria-label="Main navigation">
+      <button class="nav-link active" data-home><span class="nav-icon" aria-hidden="true">⌂</span><span>Dashboard</span></button>
+      <button class="nav-link" id="allSubjectsBtn"><span class="nav-icon" aria-hidden="true">▤</span><span>Browse Subjects</span></button>
+      <button class="nav-link" id="resourcesNav"><span class="nav-icon" aria-hidden="true">▣</span><span>Resource Library</span></button>
+      <button class="nav-link" id="uploadNav"><span class="nav-icon" aria-hidden="true">＋</span><span>Upload Resource</span></button>
+    </nav>
+
+    <div class="nav-actions">
+      <button class="theme-toggle" id="themeToggle" type="button" aria-label="Switch to dark theme" title="Switch to dark theme" aria-pressed="false">
+        <span aria-hidden="true">☾</span><span class="theme-label">Dark mode</span>
+      </button>
+    </div>
+    </div>
+  </header>
+
+  <main class="main">
+    <header class="topbar">
+      <div>
+        <p class="eyebrow">YOUR LEARNING SPACE</p>
+        <h2 id="topHeading">Dashboard</h2>
+      </div>
+      <div class="topbar-actions">
+        <button class="primary-btn" id="topUploadBtn">＋ Upload Resource</button>
+      </div>
+    </header>
+
+    <section id="dashboardPage" class="page active">
+      <div class="hero">
+        <div class="hero-copy">
+          <span class="pill">YOUR CAMPUS RESOURCE HUB</span>
+          <h1><span class="hero-title-primary">Find your next</span><br><span class="hero-title-accent">study resource.</span></h1>
+          <p>Search subjects, explore semesters and access your study material — all in one place.</p>
+        </div>
+        <div class="hero-art" aria-hidden="true">
+          <div class="art-sheet sheet-back"></div>
+          <div class="art-sheet sheet-front">
+            <span>✦</span>
+            <div class="art-line"></div>
+            <div class="art-line short"></div>
+            <div class="art-line"></div>
+            <div class="art-line medium"></div>
+          </div>
+          <div class="art-circle">P</div>
+        </div>
+      </div>
+
+      <section class="search-panel">
+        <div>
+          <p class="eyebrow">QUICK SEARCH</p>
+          <h2>What are you looking for?</h2>
+          <p class="muted">Choose a department or search for a subject directly.</p>
+        </div>
+        <form id="searchForm" class="search-controls">
+          <label class="search-input">
+            <span>⌕</span>
+            <input id="searchInput" placeholder="Search department or subject..." autocomplete="off">
+          </label>
+          <select id="departmentSelect" aria-label="Select department">
+            <option value="">All departments</option>
+          </select>
+          <button class="primary-btn" type="submit">Search</button>
+        </form>
+        <div id="searchResults" class="search-results hidden"></div>
+      </section>
+
+      <div class="section-heading">
+        <div>
+          <p class="eyebrow">EXPLORE YOUR FIELD</p>
+          <h2>Browse departments</h2>
+          <p class="muted">Select a department to explore its semesters and subjects.</p>
+        </div>
+      </div>
+      <div id="departmentGrid" class="department-grid"></div>
+
+      <div class="bottom-banner">
+        <div>
+          <p class="eyebrow">SHARE KNOWLEDGE</p>
+          <h2>Have useful study material?</h2>
+          <p>Help other students by adding your notes, slides or past papers.</p>
+        </div>
+        <button class="secondary-btn" id="bannerUploadBtn">Upload a resource ↗</button>
+      </div>
+    </section>
+
+    <section id="browsePage" class="page">
+      <button class="back-link" data-back-home>← Back to dashboard</button>
+      <div class="page-intro">
+        <p class="eyebrow">DEPARTMENT EXPLORER</p>
+        <h1 id="departmentTitle">Browse subjects</h1>
+        <p id="departmentDescription" class="muted">Select a semester to see its subjects.</p>
+      </div>
+      <div id="semesterGrid" class="semester-grid"></div>
+      <div id="subjectSection" class="subject-section hidden">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow" id="semesterEyebrow">SELECTED SEMESTER</p>
+            <h2 id="subjectHeading">Subjects</h2>
+          </div>
+        </div>
+        <div id="subjectGrid" class="subject-grid"></div>
+      </div>
+    </section>
+
+    <section id="subjectPage" class="page">
+      <button class="back-link" id="backToSubjects">← Back to subjects</button>
+      <div class="page-intro">
+        <p class="eyebrow" id="subjectBreadcrumb">SUBJECT RESOURCES</p>
+        <h1 id="resourceSubjectTitle">Subject name</h1>
+        <p class="muted" id="resourceSubjectDescription">Study material for this subject.</p>
+      </div>
+      <div class="resource-toolbar">
+        <div id="resourceFilters" class="filter-chips">
+          <button class="chip active" data-filter="All">All resources</button>
+          <button class="chip" data-filter="Notes">Notes</button>
+          <button class="chip" data-filter="PPT">PPTs & Slides</button>
+          <button class="chip" data-filter="Past Papers">Past Papers</button>
+          <button class="chip" data-filter="Books">Books</button>
+          <button class="chip" data-filter="Viva Questions">Viva Questions</button>
+        </div>
+        <button class="primary-btn" id="subjectUploadBtn">＋ Add Resource</button>
+      </div>
+      <div id="resourceList" class="resource-list"></div>
+    </section>
+
+    <section id="libraryPage" class="page">
+      <div class="page-intro">
+        <p class="eyebrow">YOUR STUDY COLLECTION</p>
+        <h1>Resource Library</h1>
+        <p class="muted">Explore available resources across all departments.</p>
+      </div>
+      <div class="library-controls">
+        <input id="librarySearch" placeholder="Search resource title or subject...">
+        <select id="libraryDepartment">
+          <option value="">All departments</option>
+        </select>
+        <select id="libraryType">
+          <option value="">All resource types</option>
+          <option>Notes</option>
+          <option>PPT</option>
+          <option>Past Papers</option>
+          <option>Books</option>
+          <option>Viva Questions</option>
+        </select>
+      </div>
+      <div id="libraryList" class="resource-list"></div>
+    </section>
+
+    <section id="uploadPage" class="page">
+      <button class="back-link" id="uploadBackBtn">← Back to dashboard</button>
+      <div class="page-intro">
+        <p class="eyebrow">CONTRIBUTE TO THE COMMUNITY</p>
+        <h1>Upload a resource</h1>
+        <p class="muted">Complete the details below so students can find your material easily.</p>
+      </div>
+
+      <form id="uploadForm" class="upload-card">
+        <div class="form-heading">
+          <span class="form-icon">↑</span>
+          <div>
+            <h2>Resource details</h2>
+            <p class="muted">Fields marked with * are required.</p>
+          </div>
+        </div>
+
+        <div class="form-grid">
+          <label>Resource title *
+            <input id="uploadTitle" required placeholder="e.g. Database Systems — Chapter 1 Notes">
+          </label>
+          <label>Uploaded by *
+            <input id="uploaderName" required placeholder="Your name">
+          </label>
+          <label>Department *
+            <select id="uploadDepartment" required>
+              <option value="">Select department</option>
+            </select>
+          </label>
+          <label>Semester *
+            <select id="uploadSemester" required disabled>
+              <option value="">Select semester</option>
+            </select>
+          </label>
+          <label>Subject *
+            <select id="uploadSubject" required disabled>
+              <option value="">Select subject</option>
+            </select>
+          </label>
+          <label>Resource type *
+            <select id="uploadType" required>
+              <option value="">Select resource type</option>
+              <option>Notes</option>
+              <option>PPT</option>
+              <option>Past Papers</option>
+              <option>Books</option>
+              <option>Viva Questions</option>
+              <option>Slides</option>
+            </select>
+          </label>
+          <label>File format *
+            <select id="uploadFormat" required>
+              <option value="">Select format</option>
+              <option>PDF</option>
+              <option>PPTX</option>
+              <option>DOCX</option>
+              <option>DOC</option>
+              <option>PPT</option>
+              <option>TXT</option>
+            </select>
+          </label>
+          <label>Academic year
+            <input id="academicYear" placeholder="e.g. 2026">
+          </label>
+        </div>
+
+        <label class="full-label">Description
+          <textarea id="uploadDescription" rows="3" placeholder="What does this resource cover?"></textarea>
+        </label>
+
+        <label class="full-label">Choose resource file *
+          <div class="file-drop">
+            <span class="upload-symbol">⇧</span>
+            <strong>Choose a file from your device</strong>
+            <small>PDF, PPT, PPTX, DOC or DOCX</small>
+            <input type="file" id="resourceFile" accept=".pdf,.ppt,.pptx,.doc,.docx,.txt" required>
+            <span id="fileName" class="muted">No file selected</span>
+          </div>
+        </label>
+
+        <p class="privacy-note">Demo mode: uploaded file details are saved in this browser. The file itself is not sent to a server.</p>
+
+        <div class="form-actions">
+          <button type="button" class="text-btn" id="cancelUpload">Cancel</button>
+          <button type="button" class="secondary-btn" id="saveDraftBtn">Save Draft</button>
+          <button type="submit" class="primary-btn">Submit Resource ↗</button>
+        </div>
+      </form>
+    </section>
+
+    <section id="downloadPage" class="page">
+      <button class="back-link" id="downloadBackBtn">← Back to resources</button>
+      <div class="download-card">
+        <div class="download-icon">↓</div>
+        <p class="eyebrow">DOWNLOAD RESOURCE</p>
+        <h1 id="downloadTitle">Resource title</h1>
+        <p id="downloadDetails" class="muted"></p>
+        <div class="download-file">
+          <span class="file-badge">FILE</span>
+          <div><strong id="downloadFileName">resource.pdf</strong><small id="downloadOriginalFormat">Original file format</small></div>
+        </div>
+        <label class="download-format-label">Choose available format
+          <select id="downloadFormat">
+            <option value="original">Download original file</option>
+          </select>
+        </label>
+        <p class="muted small-note">Only the original format is downloadable in this demo. Converting a file into Word, PDF or PowerPoint requires a conversion service.</p>
+        <button class="primary-btn wide-btn" id="downloadAction">↓ Download file</button>
+      </div>
+    </section>
+
+    <footer>PaperPilot © 2026 <span>Made for smarter studying ✦</span></footer>
+  </main>
+
+  <div id="toast" class="toast" role="status"></div>
+  <script src="script.js"></script>
+</body>
+</html>
