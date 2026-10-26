@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -10,15 +9,18 @@
 <body>
   <header class="site-header">
     <div class="nav-shell">
-    <a class="brand" href="#" data-home>
-      <img class="brand-logo" src="paperpilot-academic-logo-main.png" alt="PaperPilot Academic Resource Hub">
+    <a class="brand" href="#" data-home aria-label="PaperPilot dashboard">
+      <svg class="brand-plane" viewBox="0 0 24 24" aria-hidden="true"><path d="M21.5 2.8 14.7 21c-.3.8-1.4.9-1.8.1l-3.5-6.1-6.1-3.5c-.8-.4-.7-1.5.1-1.8l18.1-6.8ZM11 13l3 5.2 4.8-12.8L6 10.2 11 13Z" fill="currentColor"/></svg>
+      <span>PaperPilot</span>
     </a>
 
-    <nav class="primary-nav" aria-label="Main navigation">
-      <button class="nav-link active" data-home><span class="nav-icon" aria-hidden="true">⌂</span><span>Dashboard</span></button>
-      <button class="nav-link" id="allSubjectsBtn"><span class="nav-icon" aria-hidden="true">▤</span><span>Browse Subjects</span></button>
-      <button class="nav-link" id="resourcesNav"><span class="nav-icon" aria-hidden="true">▣</span><span>Resource Library</span></button>
-      <button class="nav-link" id="uploadNav"><span class="nav-icon" aria-hidden="true">＋</span><span>Upload Resource</span></button>
+    <button class="menu-toggle" id="menuToggle" type="button" aria-label="Open navigation menu" aria-expanded="false">☰</button>
+
+    <nav class="primary-nav" id="primaryNav" aria-label="Main navigation">
+      <button class="nav-link active" data-home><span>Dashboard</span></button>
+      <button class="nav-link" id="allSubjectsBtn"><span>Browse Departments</span></button>
+      <button class="nav-link" id="resourcesNav"><span>Resource Library</span></button>
+      <button class="nav-link" id="uploadNav"><span>Upload Resource</span></button>
     </nav>
 
     <div class="nav-actions">
@@ -28,15 +30,13 @@
     </div>
     </div>
   </header>
+  <div class="nav-overlay" id="navOverlay"></div>
 
   <main class="main">
     <header class="topbar">
       <div>
         <p class="eyebrow">YOUR LEARNING SPACE</p>
         <h2 id="topHeading">Dashboard</h2>
-      </div>
-      <div class="topbar-actions">
-        <button class="primary-btn" id="topUploadBtn">＋ Upload Resource</button>
       </div>
     </header>
 
@@ -79,6 +79,27 @@
         <div id="searchResults" class="search-results hidden"></div>
       </section>
 
+      <section class="quick-access-section" aria-labelledby="quickAccessTitle">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">YOUR LIBRARY</p>
+            <h2 id="quickAccessTitle">Quick Access</h2>
+          </div>
+        </div>
+        <div class="quick-access-grid">
+          <button class="quick-access-card" type="button" data-open-my-files="uploads">
+            <span class="quick-access-count" id="myUploadsCount">0</span>
+            <span class="quick-access-label">My Uploads</span>
+            <span class="quick-access-action">View uploads</span>
+          </button>
+          <button class="quick-access-card" type="button" data-open-my-files="downloads">
+            <span class="quick-access-count" id="myDownloadsCount">0</span>
+            <span class="quick-access-label">My Downloads</span>
+            <span class="quick-access-action">View downloads</span>
+          </button>
+        </div>
+      </section>
+
       <div class="section-heading">
         <div>
           <p class="eyebrow">EXPLORE YOUR FIELD</p>
@@ -94,23 +115,56 @@
           <h2>Have useful study material?</h2>
           <p>Help other students by adding your notes, slides or past papers.</p>
         </div>
-        <button class="secondary-btn" id="bannerUploadBtn">Upload a resource ↗</button>
       </div>
+    </section>
+
+    <section id="myFilesPage" class="page">
+      <button class="back-link" data-back-home>← Back to dashboard</button>
+      <section id="myUploads" class="my-uploads-section">
+        <div class="uploads-heading">
+          <div>
+            <p class="eyebrow">YOUR PAPERPILOT LIBRARY</p>
+            <h2>My Uploads &amp; Downloads</h2>
+            <p id="userWelcome" class="muted"></p>
+          </div>
+        </div>
+        <div class="uploads-tabs" role="tablist" aria-label="My files">
+          <button class="uploads-tab active" id="uploadsTab" type="button" role="tab" aria-selected="true">My Uploads</button>
+          <button class="uploads-tab" id="downloadsTab" type="button" role="tab" aria-selected="false">My Downloads</button>
+        </div>
+        <div class="uploads-controls" id="uploadsControls">
+          <input id="uploadsSearch" type="search" placeholder="Search file names..." aria-label="Search uploads">
+          <select id="uploadsSubjectFilter" aria-label="Filter by subject">
+            <option value="">All subjects</option>
+          </select>
+          <select id="uploadsSemesterFilter" aria-label="Filter by semester">
+            <option value="">All semesters</option>
+            <option value="1">Semester 1</option><option value="2">Semester 2</option>
+            <option value="3">Semester 3</option><option value="4">Semester 4</option>
+            <option value="5">Semester 5</option><option value="6">Semester 6</option>
+            <option value="7">Semester 7</option><option value="8">Semester 8</option>
+          </select>
+        </div>
+        <button class="text-btn clear-history-btn hidden" id="clearDownloadsBtn" type="button">Clear All History</button>
+        <div id="uploadsGrid" class="uploads-grid" aria-live="polite"></div>
+      </section>
     </section>
 
     <section id="browsePage" class="page">
       <button class="back-link" data-back-home>← Back to dashboard</button>
       <div class="page-intro">
         <p class="eyebrow">DEPARTMENT EXPLORER</p>
-        <h1 id="departmentTitle">Browse subjects</h1>
-        <p id="departmentDescription" class="muted">Select a semester to see its subjects.</p>
+        <h1 id="departmentTitle">Browse departments</h1>
+        <p id="departmentDescription" class="muted">Choose a department to explore its semesters and subjects.</p>
       </div>
-      <div id="semesterGrid" class="semester-grid"></div>
+      <div id="browseDepartmentGrid" class="department-grid"></div>
+      <button class="back-link hidden" id="browseAllDepartments" type="button">← All departments</button>
+      <div id="semesterGrid" class="semester-grid hidden"></div>
       <div id="subjectSection" class="subject-section hidden">
         <div class="section-heading">
           <div>
             <p class="eyebrow" id="semesterEyebrow">SELECTED SEMESTER</p>
-            <h2 id="subjectHeading">Subjects</h2>
+            <h2 id="subjectHeading" class="semester-subject-heading">Subjects</h2>
           </div>
         </div>
         <div id="subjectGrid" class="subject-grid"></div>
@@ -133,7 +187,6 @@
           <button class="chip" data-filter="Books">Books</button>
           <button class="chip" data-filter="Viva Questions">Viva Questions</button>
         </div>
-        <button class="primary-btn" id="subjectUploadBtn">＋ Add Resource</button>
       </div>
       <div id="resourceList" class="resource-list"></div>
     </section>
@@ -169,84 +222,74 @@
         <p class="muted">Complete the details below so students can find your material easily.</p>
       </div>
 
-      <form id="uploadForm" class="upload-card">
+      <form id="uploadForm" class="upload-card" novalidate>
         <div class="form-heading">
           <span class="form-icon">↑</span>
           <div>
-            <h2>Resource details</h2>
-            <p class="muted">Fields marked with * are required.</p>
+            <h2>Upload study files</h2>
+            <p class="muted">Add files and details once, or customize each file name before uploading.</p>
           </div>
         </div>
 
         <div class="form-grid">
-          <label>Resource title *
-            <input id="uploadTitle" required placeholder="e.g. Database Systems — Chapter 1 Notes">
-          </label>
-          <label>Uploaded by *
-            <input id="uploaderName" required placeholder="Your name">
+          <label>Uploaded By / Full Name *
+            <input id="uploaderName" required placeholder="Your full name" autocomplete="name">
           </label>
           <label>Department *
             <select id="uploadDepartment" required>
               <option value="">Select department</option>
+              <option value="CS">CS</option><option value="SE">SE</option>
+              <option value="IT">IT</option><option value="BBA">BBA</option>
+              <option value="Computer Systems Engineering">Computer Systems Engineering</option>
+              <option value="Electronic Engineering">Electronic Engineering</option>
+              <option value="Telecommunication Engineering">Telecommunication Engineering</option>
+              <option value="Textile Engineering">Textile Engineering</option>
             </select>
           </label>
+          <div class="form-grid-field">
+            <label for="uploadSubject">Subject *</label>
+            <select id="uploadSubject" required disabled aria-label="Subject">
+              <option value="">Select department and semester first</option>
+            </select>
+            <input id="uploadSubjectCustom" class="hidden" placeholder="Enter subject name" aria-label="Enter subject name">
+            <small id="uploadSubjectHint" class="field-hint">Choose a department and semester to see the subject list.</small>
+          </div>
           <label>Semester *
-            <select id="uploadSemester" required disabled>
+            <select id="uploadSemester" required>
               <option value="">Select semester</option>
+              <option value="1">Semester 1</option><option value="2">Semester 2</option>
+              <option value="3">Semester 3</option><option value="4">Semester 4</option>
+              <option value="5">Semester 5</option><option value="6">Semester 6</option>
+              <option value="7">Semester 7</option><option value="8">Semester 8</option>
             </select>
           </label>
-          <label>Subject *
-            <select id="uploadSubject" required disabled>
-              <option value="">Select subject</option>
+          <label>Category
+            <select id="uploadCategory">
+              <option value="">Select category</option>
+              <option>Notes</option><option>Past Papers</option><option>Slides</option>
+              <option>Books</option><option>Assignments</option><option>Other</option>
             </select>
-          </label>
-          <label>Resource type *
-            <select id="uploadType" required>
-              <option value="">Select resource type</option>
-              <option>Notes</option>
-              <option>PPT</option>
-              <option>Past Papers</option>
-              <option>Books</option>
-              <option>Viva Questions</option>
-              <option>Slides</option>
-            </select>
-          </label>
-          <label>File format *
-            <select id="uploadFormat" required>
-              <option value="">Select format</option>
-              <option>PDF</option>
-              <option>PPTX</option>
-              <option>DOCX</option>
-              <option>DOC</option>
-              <option>PPT</option>
-              <option>TXT</option>
-            </select>
-          </label>
-          <label>Academic year
-            <input id="academicYear" placeholder="e.g. 2026">
           </label>
         </div>
 
-        <label class="full-label">Description
-          <textarea id="uploadDescription" rows="3" placeholder="What does this resource cover?"></textarea>
-        </label>
-
-        <label class="full-label">Choose resource file *
-          <div class="file-drop">
-            <span class="upload-symbol">⇧</span>
-            <strong>Choose a file from your device</strong>
-            <small>PDF, PPT, PPTX, DOC or DOCX</small>
-            <input type="file" id="resourceFile" accept=".pdf,.ppt,.pptx,.doc,.docx,.txt" required>
-            <span id="fileName" class="muted">No file selected</span>
-          </div>
-        </label>
-
-        <p class="privacy-note">Demo mode: uploaded file details are saved in this browser. The file itself is not sent to a server.</p>
+        <label class="same-info-control"><input id="sameInfoCheckbox" type="checkbox" checked> Apply same info to all files</label>
+        <div class="file-drop" id="fileDropZone" role="button" tabindex="0" aria-label="Drag and drop files or click to browse">
+          <span class="upload-symbol">⇧</span>
+          <strong>Drag &amp; Drop or Click to Browse</strong>
+          <small>PDF, DOCX, PNG or JPG</small>
+          <input type="file" id="fileInput" multiple accept=".pdf,.docx,.png,.jpg">
+        </div>
+        <div id="selectedFiles" class="selected-files" aria-live="polite"></div>
+        <p id="draftNotice" class="draft-notice hidden" role="status"></p>
+        <div id="uploadProgress" class="upload-progress hidden" role="progressbar" aria-label="Upload progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+          <div id="uploadProgressBar"></div>
+        </div>
+        <p class="privacy-note">Demo mode: file details are saved in this browser. The selected file contents are not uploaded to a server.</p>
 
         <div class="form-actions">
           <button type="button" class="text-btn" id="cancelUpload">Cancel</button>
-          <button type="button" class="secondary-btn" id="saveDraftBtn">Save Draft</button>
-          <button type="submit" class="primary-btn">Submit Resource ↗</button>
+          <button type="button" class="secondary-btn" id="saveDraftBtn">Save as draft</button>
+          <button type="submit" class="primary-btn">Upload All ↗</button>
         </div>
       </form>
     </section>
@@ -275,7 +318,17 @@
     <footer>PaperPilot © 2026 <span>Made for smarter studying ✦</span></footer>
   </main>
 
-  <div id="toast" class="toast" role="status"></div>
+  <div id="toast-container"><div id="toast" class="toast" role="status"></div></div>
+  <div class="modal-overlay hidden" id="deleteModal" role="dialog" aria-modal="true" aria-labelledby="deleteModalTitle">
+    <div class="confirm-modal">
+      <h2 id="deleteModalTitle">Delete upload?</h2>
+      <p id="deleteModalMessage"></p>
+      <div class="form-actions">
+        <button class="text-btn" id="cancelDeleteBtn" type="button">Cancel</button>
+        <button class="danger-btn" id="confirmDeleteBtn" type="button">Delete</button>
+      </div>
+    </div>
+  </div>
   <script src="script.js"></script>
 </body>
 </html>

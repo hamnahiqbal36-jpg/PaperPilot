@@ -1,4 +1,3 @@
-
 const $ = (selector) => document.querySelector(selector);
 const $$ = (selector) => [...document.querySelectorAll(selector)];
 
@@ -408,7 +407,6 @@ function loadStored(key, fallback) {
 }
 
 let resources = loadStored("paperpilot_muet_resources", defaultResources);
-let drafts = loadStored("paperpilot_muet_drafts", []);
 
 let selectedDepartment = "";
 let selectedSemester = 1;
@@ -416,17 +414,18 @@ let selectedSubject = "";
 let currentFilter = "All";
 let currentResource = null;
 let previousPage = "subjectPage";
-let selectedUploadFile = null;
+let selectedFiles = [];
+let restoredDraftFiles = [];
+let uploaderNameTouched = false;
+let activeUploadsTab = "uploads";
+let pendingDeleteId = null;
+const uploadFileObjects = new Map();
 let toastTimer;
 
 function saveResources() {
   // Browser object URLs are temporary and must not be treated as permanent links.
   const safeResources = resources.map(({ objectUrl, ...resource }) => resource);
   localStorage.setItem("paperpilot_muet_resources", JSON.stringify(safeResources));
-}
-
-function saveDrafts() {
-  localStorage.setItem("paperpilot_muet_drafts", JSON.stringify(drafts));
 }
 
 function applyTheme(theme) {
@@ -477,7 +476,7 @@ function showToast(message, status = "notice") {
   }
   toast.classList.add("show");
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => toast.classList.remove("show"), 3500);
+  toastTimer = setTimeout(() => toast.classList.remove("show"), 3000);
 }
 
 function syncStyledSelects() {
@@ -495,7 +494,6 @@ function populateDepartmentDropdowns() {
 
   $("#departmentSelect").insertAdjacentHTML("beforeend", options);
   $("#libraryDepartment").insertAdjacentHTML("beforeend", options);
-  $("#uploadDepartment").insertAdjacentHTML("beforeend", options);
 }
 
 function initializeStyledSelects() {
@@ -686,19 +684,17 @@ function initializeStyledSelects() {
 }
 
 function renderDepartmentCards() {
-  $("#departmentGrid").innerHTML = departments.map(department => `
+  const cards = departments.map(department => `
     <button class="department-card"
       data-department="${escapeHTML(department.name)}">
-      <div class="department-top">
-        <span class="department-icon">${department.icon}</span>
-        <span class="arrow">↗</span>
-      </div>
-      <h3>${escapeHTML(department.name)}</h3>
-      <p>${escapeHTML(department.degree)} · 8 Semesters</p>
-      <p>${escapeHTML(department.description)}</p>
-      <p><strong>View Subjects →</strong></p>
+    <h3>${escapeHTML(department.name)}</h3>
+    <p class="department-card-degree">${escapeHTML(department.degree)} · 8 Semesters</p>
+    <p class="department-card-description">${escapeHTML(department.description)}</p>
+    <span class="department-card-action">View semesters →</span>
     </button>
   `).join("");
+  $("#departmentGrid").innerHTML = cards;
+  $("#browseDepartmentGrid").innerHTML = cards;
 }
 
 /* =====================================================
@@ -713,17 +709,25 @@ function showPage(pageId, heading) {
   $$(".nav-link").forEach(link => link.classList.remove("active"));
 
   const navMap = {
-    dashboardPage: '[data-home]',
+    dashboardPage: ".nav-link[data-home]",
     browsePage: "#allSubjectsBtn",
     subjectPage: "#resourcesNav",
     libraryPage: "#resourcesNav",
+    downloadPage: "#resourcesNav",
     uploadPage: "#uploadNav"
   };
 
   const activeLink = document.querySelector(navMap[pageId]);
-  if (activeLink) activeLink.classList.add("active");
+  if (activeLink) {
+    activeLink.classList.add("active");
+    activeLink.setAttribute("aria-current", "page");
+  }
+  $$(".nav-link").forEach(link => {
+    if (link !== activeLink) link.removeAttribute("aria-current");
+  });
 
-  $("#topHeading").textContent = heading;
+  const topHeading = $("#topHeading");
+  if (topHeading) topHeading.textContent = heading;
   $("#searchResults").classList.add("hidden");
 
   window.scrollTo({ top: 0, behavior: "smooth" });
@@ -732,6 +736,17 @@ function showPage(pageId, heading) {
 
 function goHome() {
   showPage("dashboardPage", "Dashboard");
+}
+
+function openBrowseDepartments() {
+  selectedDepartment = "";
+  $("#departmentTitle").textContent = "Browse departments";
+  $("#departmentDescription").textContent = "Choose a department to explore its semesters and subjects.";
+  $("#browseDepartmentGrid").classList.remove("hidden");
+  $("#browseAllDepartments").classList.add("hidden");
+  $("#semesterGrid").classList.add("hidden");
+  $("#subjectSection").classList.add("hidden");
+  showPage("browsePage", "Browse Departments");
 }
 
 /* =====================================================
@@ -750,6 +765,9 @@ function openDepartment(departmentName) {
     `${department.description} Select a semester to view its complete subject list.`;
 
   renderSemesters();
+  $("#browseDepartmentGrid").classList.add("hidden");
+  $("#browseAllDepartments").classList.remove("hidden");
+  $("#semesterGrid").classList.remove("hidden");
   $("#subjectSection").classList.add("hidden");
   showPage("browsePage", department.name);
 }
@@ -765,7 +783,7 @@ function renderSemesters() {
         <span class="semester-number">${String(semester).padStart(2, "0")}</span>
         <span>
           <strong>Semester ${semester}</strong>
-          <small>${subjectCount} subjects · View Subjects →</small>
+          <small>→ View ${subjectCount} subjects</small>
         </span>
       </button>
     `;
@@ -781,7 +799,11 @@ function openSemester(semester) {
   $("#semesterEyebrow").textContent =
     `${selectedDepartment.toUpperCase()} · SEMESTER ${selectedSemester}`;
 
-  $("#subjectHeading").textContent = `Semester ${selectedSemester} Subjects`;
+  $("#subjectHeading").innerHTML = `
+    <span>Semester ${selectedSemester}</span>
+    <span class="semester-heading-arrow" aria-hidden="true">→</span>
+    <span>Subjects</span>
+  `;
 
   $("#subjectGrid").innerHTML = subjects.map((subject, index) => {
     const count = resources.filter(resource =>
@@ -1029,164 +1051,277 @@ function handleSearchResult(event) {
 }
 
 /* =====================================================
-   8. UPLOAD FORM AND SEMESTER-SUBJECT DROPDOWNS
+   8. BULK UPLOAD FORM
 ===================================================== */
+
+const customSubjectValue = "__custom_subject__";
+
+function getUploadSubject() {
+  return $("#uploadSubject").value === customSubjectValue
+    ? $("#uploadSubjectCustom").value.trim()
+    : $("#uploadSubject").value.trim();
+}
+
+function updateUploadSubjectOptions(preferredSubject = "") {
+  const subjectSelect = $("#uploadSubject");
+  const department = $("#uploadDepartment").value;
+  const semester = $("#uploadSemester").value;
+  const departmentAliases = {
+    CS: "Computer Systems Engineering",
+    SE: "Software Engineering"
+  };
+  const subjectDepartment = departmentAliases[department] || department;
+  const subjects = department && semester ? getSubjects(subjectDepartment, semester) : [];
+  const ready = Boolean(department && semester);
+  const options = !ready
+    ? [new Option("Select department and semester first", "")]
+    : subjects.length
+      ? [
+        new Option("Select a subject", ""),
+        ...subjects.map(subject => new Option(subject, subject)),
+        new Option("Other (enter manually)", customSubjectValue)
+      ]
+      : [
+        new Option("No subjects are listed for this selection", ""),
+        new Option("Enter subject manually", customSubjectValue)
+      ];
+
+  subjectSelect.replaceChildren(...options);
+
+  const matchingSubject = subjects.find(subject => subject === preferredSubject);
+  const useCustomSubject = ready && Boolean(preferredSubject) && !matchingSubject;
+  subjectSelect.disabled = !ready;
+  subjectSelect.value = matchingSubject || (useCustomSubject ? customSubjectValue : "");
+  $("#uploadSubjectCustom").value = useCustomSubject ? preferredSubject : "";
+  $("#uploadSubjectCustom").classList.toggle("hidden", subjectSelect.value !== customSubjectValue);
+  $("#uploadSubjectCustom").required = subjectSelect.value === customSubjectValue;
+  const subjectHint = $("#uploadSubjectHint");
+  if (subjectHint) {
+    subjectHint.textContent = ready
+      ? subjects.length
+        ? "Subjects shown are for the selected department and semester."
+        : "No subject list is available here. Choose manual entry to continue."
+      : "Choose a department and semester to see the subject list.";
+  }
+  subjectSelect.syncStyledSelect?.();
+}
 
 function openUpload(prefill = {}) {
   $("#uploadForm").reset();
-  selectedUploadFile = null;
-  $("#fileName").textContent = "No file selected";
-
-  $("#uploadSemester").disabled = true;
-  $("#uploadSubject").disabled = true;
-
-  $("#uploadSemester").innerHTML =
-    '<option value="">Select semester</option>';
-  $("#uploadSubject").innerHTML =
-    '<option value="">Select subject</option>';
-
-  if (prefill.department) {
-    $("#uploadDepartment").value = prefill.department;
-    populateUploadSemesters();
-  }
-
-  if (prefill.semester) {
-    $("#uploadSemester").value = String(prefill.semester);
-    populateUploadSubjects();
-  }
-
-  if (prefill.subject) {
-    $("#uploadSubject").value = prefill.subject;
-  }
+  selectedFiles = [];
+  restoredDraftFiles = [];
+  uploaderNameTouched = false;
+  $("#selectedFiles").replaceChildren();
+  $("#fileInput").value = "";
+  const draft = loadStored("paperpilot_upload_draft", null);
+  const hasDraft = draft && typeof draft === "object";
+  $("#uploaderName").value = prefill.uploaderName || draft?.uploaderName || localStorage.getItem("paperpilot_user") || "";
+  $("#uploadDepartment").value = prefill.department || draft?.department || "";
+  $("#uploadSemester").value = prefill.semester ? String(prefill.semester) : draft?.semester || "";
+  $("#uploadCategory").value = prefill.category || draft?.category || "";
+  updateUploadSubjectOptions(prefill.subject || draft?.subject || "");
+  $("#sameInfoCheckbox").checked = typeof draft?.sameInfo === "boolean" ? draft.sameInfo : true;
+  restoredDraftFiles = Array.isArray(draft?.files) ? draft.files : [];
+  $("#draftNotice").classList.toggle("hidden", !hasDraft);
+  $("#draftNotice").dataset.state = hasDraft ? "restored" : "";
+  $("#draftNotice").textContent = hasDraft
+    ? `Draft restored${draft.savedAt ? ` from ${draft.savedAt}` : ""}. ${restoredDraftFiles.length ? "Re-select the listed files to continue." : "Your saved details are ready to continue."} File contents are not stored in drafts.`
+    : "";
+  $("#uploadDepartment").syncStyledSelect?.();
+  $("#uploadSemester").syncStyledSelect?.();
+  $("#uploadCategory").syncStyledSelect?.();
+  $("#uploadSubject").syncStyledSelect?.();
+  renderSelectedFiles();
+  $("#uploadProgress").classList.add("hidden");
+  $("#uploadProgressBar").style.width = "0%";
+  $("#uploaderName").classList.remove("is-invalid");
+  $("#uploadSubjectCustom").classList.remove("is-invalid");
+  $("#subjectError")?.remove();
+  $("#uploaderNameError")?.remove();
 
   showPage("uploadPage", "Upload Resource");
 }
 
-function populateUploadSemesters() {
-  const departmentName = $("#uploadDepartment").value;
-
-  $("#uploadSemester").disabled = !departmentName;
-  $("#uploadSubject").disabled = true;
-
-  $("#uploadSemester").innerHTML =
-    '<option value="">Select semester</option>';
-  $("#uploadSubject").innerHTML =
-    '<option value="">Select subject</option>';
-
-  if (!departmentName) {
-    syncStyledSelects();
-    return;
-  }
-
-  const department = getDepartment(departmentName);
-
-  department.semesters.forEach((subjects, index) => {
-    $("#uploadSemester").insertAdjacentHTML(
-      "beforeend",
-      `<option value="${index + 1}">Semester ${index + 1}</option>`
-    );
-  });
-  syncStyledSelects();
-}
-
-function populateUploadSubjects() {
-  const departmentName = $("#uploadDepartment").value;
-  const semester = Number($("#uploadSemester").value);
-
-  $("#uploadSubject").disabled = !departmentName || !semester;
-  $("#uploadSubject").innerHTML =
-    '<option value="">Select subject</option>';
-
-  if (!departmentName || !semester) {
-    syncStyledSelects();
-    return;
-  }
-
-  getSubjects(departmentName, semester).forEach(subject => {
-    $("#uploadSubject").insertAdjacentHTML(
-      "beforeend",
-      `<option value="${escapeHTML(subject)}">${escapeHTML(subject)}</option>`
-    );
-  });
-  syncStyledSelects();
-}
-
-function collectUploadData() {
-  return {
-    title: $("#uploadTitle").value.trim(),
-    uploader: $("#uploaderName").value.trim(),
-    department: $("#uploadDepartment").value,
-    semester: Number($("#uploadSemester").value),
-    subject: $("#uploadSubject").value,
-    type: $("#uploadType").value,
-    format: $("#uploadFormat").value,
-    academicYear: $("#academicYear").value.trim(),
-    description: $("#uploadDescription").value.trim(),
-    filename: selectedUploadFile ? selectedUploadFile.name : "",
-    savedAt: new Date().toISOString()
-  };
-}
-
 function saveUploadDraft() {
-  const data = collectUploadData();
-
-  if (!data.title && !data.department && !data.description) {
-    showToast("Please enter some details before saving your draft.");
+  const uploaderName = $("#uploaderName").value.trim();
+  const savedUserName = (localStorage.getItem("paperpilot_user") || "").trim();
+  const hasDetails = Boolean(
+    (uploaderName && (uploaderName !== savedUserName || uploaderNameTouched)) ||
+    $("#uploadDepartment").value ||
+    getUploadSubject() ||
+    $("#uploadSemester").value ||
+    $("#uploadCategory").value
+  );
+  if (!hasDetails && !selectedFiles.length && !restoredDraftFiles.length) {
+    const message = "Add at least one detail or select a file before saving.";
+    $("#draftNotice").dataset.state = "error";
+    $("#draftNotice").textContent = message;
+    $("#draftNotice").classList.remove("hidden");
+    showToast(message, "error");
+    $("#uploadDepartment").parentElement.querySelector(".select-trigger")?.focus();
     return;
   }
 
-  // Draft metadata is saved locally. The selected file bytes are not saved.
-  drafts.push({
-    ...data,
-    id: `${Date.now()}-${Math.random().toString(16).slice(2)}`
-  });
+  const files = [
+    ...selectedFiles.map(item => ({
+      originalName: item.file.name,
+      fileName: item.nameInput?.value.trim() || item.file.name,
+      subject: item.row?.querySelector(".file-subject")?.value.trim() || "",
+      semester: item.row?.querySelector(".file-semester")?.value || "",
+      category: item.row?.querySelector(".file-category")?.value || ""
+    })),
+    ...restoredDraftFiles
+  ];
+  const draft = {
+    uploaderName: $("#uploaderName").value.trim(),
+    department: $("#uploadDepartment").value,
+    subject: getUploadSubject(),
+    semester: $("#uploadSemester").value,
+    category: $("#uploadCategory").value,
+    sameInfo: $("#sameInfoCheckbox").checked,
+    files,
+    savedAt: new Date().toLocaleString()
+  };
 
-  saveDrafts();
-  showToast("Draft saved in this browser. Complete submission when ready.");
+  try {
+    localStorage.setItem("paperpilot_upload_draft", JSON.stringify(draft));
+  } catch (error) {
+    showToast("Could not save this draft in your browser.", "error");
+    return;
+  }
+
+  restoredDraftFiles = files;
+  $("#draftNotice").dataset.state = "saved";
+  $("#draftNotice").textContent = `Draft saved ${draft.savedAt}. File contents are not stored; re-select the files to continue.`;
+  $("#draftNotice").classList.remove("hidden");
+  showToast("Draft saved successfully.");
 }
 
 function submitUpload(event) {
   event.preventDefault();
 
-  if (!selectedUploadFile) {
-    showToast("Please select a resource file.");
+  const subjectInput = $("#uploadSubject");
+  const subject = getUploadSubject();
+  $("#uploadSubjectCustom").classList.toggle("is-invalid", subjectInput.value === customSubjectValue && !subject);
+  $("#subjectError")?.remove();
+  if (!subject) {
+    const error = document.createElement("span");
+    error.id = "subjectError";
+    error.className = "field-error";
+    error.textContent = "Subject is required.";
+    subjectInput.closest(".select-field").insertAdjacentElement("afterend", error);
+    if (subjectInput.disabled) {
+      showToast(
+        subjectInput.options.length && subjectInput.options[0].textContent.startsWith("No subjects")
+          ? "No subjects are listed for this department and semester."
+          : "Select a department and semester to choose a subject.",
+        "error"
+      );
+      if (!$("#uploadDepartment").value || !$("#uploadSemester").value) {
+        const missingSelect = !$("#uploadDepartment").value ? $("#uploadDepartment") : $("#uploadSemester");
+        missingSelect.parentElement.querySelector(".select-trigger")?.focus();
+      }
+      return;
+    }
+    const customSelected = subjectInput.value === customSubjectValue;
+    showToast(customSelected ? "Please enter a subject." : "Please select a subject.", "error");
+    if (customSelected) $("#uploadSubjectCustom").focus();
+    else subjectInput.parentElement.querySelector(".select-trigger")?.focus();
     return;
   }
 
-  const data = collectUploadData();
-  const extension = selectedUploadFile.name.split(".").pop().toLowerCase();
-  const allowed = ["pdf", "ppt", "pptx", "doc", "docx", "txt"];
-
-  if (!allowed.includes(extension)) {
-    showToast("Supported formats: PDF, PPT, PPTX, DOC, DOCX and TXT.");
+  const uploaderName = $("#uploaderName").value.trim();
+  const department = $("#uploadDepartment").value;
+  $("#uploaderName").classList.toggle("is-invalid", !uploaderName);
+  $("#uploaderNameError")?.remove();
+  if (!uploaderName) {
+    const error = document.createElement("span");
+    error.id = "uploaderNameError";
+    error.className = "field-error";
+    error.textContent = "Your full name is required.";
+    $("#uploaderName").insertAdjacentElement("afterend", error);
+    showToast("Please enter your full name.", "error");
+    $("#uploaderName").focus();
+    return;
+  }
+  if (!department) {
+    showToast("Please select a department.", "error");
+    $("#uploadDepartment").parentElement.querySelector(".select-trigger")?.focus();
     return;
   }
 
-  if (selectedUploadFile.size > 10 * 1024 * 1024) {
-    showToast("For this demo, please select a file smaller than 10 MB.");
+  if (!selectedFiles.length) {
+    showToast("Please select at least one file.", "error");
     return;
   }
 
-  const objectUrl = URL.createObjectURL(selectedUploadFile);
+  const semester = $("#uploadSemester").value;
+  if (!semester) {
+    showToast("Please select a semester.", "error");
+    $("#uploadSemester").parentElement.querySelector(".select-trigger")?.focus();
+    return;
+  }
 
-  const newResource = {
-    ...data,
-    id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
-    format: extension.toUpperCase(),
-    objectUrl,
-    demo: false
-  };
+  const now = Date.now();
+  const sameInfo = $("#sameInfoCheckbox").checked;
+  const uploads = readUploadList("paperpilot_uploads");
+  const addedUploads = selectedFiles.map((item, index) => {
+    const fileName = item.nameInput.value.trim() || item.file.name;
+    const itemSubject = sameInfo ? subject : item.row.querySelector(".file-subject")?.value.trim() || subject;
+    const itemSemester = sameInfo ? semester : item.row.querySelector(".file-semester")?.value || semester;
+    const itemCategory = sameInfo ? $("#uploadCategory").value : item.row.querySelector(".file-category")?.value || $("#uploadCategory").value;
+    const fileType = item.file.name.split(".").pop().toLowerCase();
+    const upload = {
+      id: now + index,
+      fileName,
+      uploaderName,
+      department,
+      subject: itemSubject,
+      semester: Number(itemSemester),
+      category: itemCategory,
+      date: new Date().toLocaleDateString(),
+      fileType
+    };
+    uploadFileObjects.set(upload.id, item.file);
+    return upload;
+  });
 
-  resources.unshift(newResource);
-  saveResources();
-
-  showToast("Resource added for this browser session.");
-
-  selectedDepartment = data.department;
-  selectedSemester = data.semester;
-  selectedSubject = data.subject;
-
-  openSubject(data.subject);
+  const progress = $("#uploadProgress");
+  const progressBar = $("#uploadProgressBar");
+  progress.classList.remove("hidden");
+  progress.setAttribute("aria-valuenow", "0");
+  progressBar.style.width = "0%";
+  let percentage = 0;
+  const timer = setInterval(() => {
+    percentage = Math.min(100, percentage + 20);
+    progressBar.style.width = `${percentage}%`;
+    progress.setAttribute("aria-valuenow", String(percentage));
+    if (percentage === 100) {
+      clearInterval(timer);
+      try {
+        localStorage.setItem("paperpilot_uploads", JSON.stringify([...uploads, ...addedUploads]));
+      } catch (error) {
+        showToast("Could not save uploads in this browser. Check available storage.", "error");
+        return;
+      }
+      let draftClearFailed = false;
+      try {
+        localStorage.removeItem("paperpilot_upload_draft");
+      } catch (error) {
+        draftClearFailed = true;
+      }
+      restoredDraftFiles = [];
+      showToast(
+        draftClearFailed
+          ? "Upload saved, but its draft could not be cleared."
+          : `${addedUploads.length} file${addedUploads.length === 1 ? "" : "s"} uploaded successfully.`,
+        draftClearFailed ? "error" : "notice"
+      );
+      renderMyUploads();
+      goHome();
+      $("#myUploads").scrollIntoView({ behavior: "smooth" });
+    }
+  }, 100);
 }
 
 /* =====================================================
@@ -1252,6 +1387,225 @@ function downloadCurrentResource() {
   triggerResourceDownload(url, "PaperPilot-demo-resource.txt", true);
 }
 
+function readUploadList(key) {
+  const value = loadStored(key, []);
+  return Array.isArray(value) ? value : [];
+}
+
+function renderWelcome() {
+  const name = localStorage.getItem("paperpilot_user");
+  $("#userWelcome").innerHTML = name
+    ? `Welcome, ${escapeHTML(name)} 👋 <button class="text-btn welcome-name-btn" type="button" data-set-name>Change Name</button>`
+    : 'Welcome, Guest! <button class="text-btn welcome-name-btn" type="button" data-set-name>Set Name</button>';
+}
+
+function renderQuickAccessCounts() {
+  $("#myUploadsCount").textContent = String(readUploadList("paperpilot_uploads").length);
+  $("#myDownloadsCount").textContent = String(readUploadList("paperpilot_downloads").length);
+}
+
+function openMyFiles(tab = "uploads") {
+  activeUploadsTab = tab;
+  renderMyUploads();
+  showPage("myFilesPage", tab === "uploads" ? "My Uploads" : "My Downloads");
+}
+
+function fileIconType(fileType = "") {
+  const extension = fileType.toLowerCase().replace(".", "");
+  if (extension === "pdf") return ["PDF", "file-icon-pdf"];
+  if (extension === "docx") return ["DOCX", "file-icon-docx"];
+  if (extension === "png" || extension === "jpg" || extension === "jpeg") return [extension.toUpperCase(), "file-icon-image"];
+  return [extension.toUpperCase() || "FILE", "file-icon-other"];
+}
+
+function updateUploadFilters(uploads) {
+  const subjectFilter = $("#uploadsSubjectFilter");
+  const currentSubject = subjectFilter.value;
+  const subjects = [...new Set(uploads.map(upload => upload.subject).filter(Boolean))].sort((a, b) => a.localeCompare(b));
+  subjectFilter.innerHTML = '<option value="">All subjects</option>' +
+    subjects.map(subject => `<option value="${escapeHTML(subject)}">${escapeHTML(subject)}</option>`).join("");
+  subjectFilter.value = subjects.includes(currentSubject) ? currentSubject : "";
+  subjectFilter.syncStyledSelect?.();
+}
+
+function renderUploadCard(upload, isDownload = false) {
+  const sourceUpload = isDownload
+    ? readUploadList("paperpilot_uploads").find(item => String(item.id) === String(upload.id))
+    : upload;
+  const [label, iconClass] = fileIconType(upload.fileType || sourceUpload?.fileType || upload.fileName?.split(".").pop());
+  const actions = isDownload
+    ? `<button class="text-btn" type="button" data-upload-action="download-again" data-id="${escapeHTML(upload.id)}">Download Again</button>
+       <button class="text-btn" type="button" data-upload-action="remove-history" data-id="${escapeHTML(upload.id)}">Remove from History</button>`
+    : `<button class="text-btn" type="button" data-upload-action="rename" data-id="${escapeHTML(upload.id)}" aria-label="Rename ${escapeHTML(upload.fileName)}">✎ Rename</button>
+       <button class="text-btn" type="button" data-upload-action="delete" data-id="${escapeHTML(upload.id)}" aria-label="Delete ${escapeHTML(upload.fileName)}">Delete</button>
+       <button class="primary-btn" type="button" data-upload-action="download" data-id="${escapeHTML(upload.id)}">↓ Download</button>`;
+  return `
+    <article class="upload-item-card" data-upload-card="${escapeHTML(upload.id)}">
+      <div class="upload-item-main">
+        <span class="file-type-icon ${iconClass}" aria-hidden="true">${label}</span>
+        <div class="upload-item-info">
+          <h3 title="${escapeHTML(upload.fileName)}" class="upload-file-name">${escapeHTML(upload.fileName)}</h3>
+          <div class="upload-badges">
+            <span class="upload-badge">${escapeHTML(upload.subject || "Uncategorized")}</span>
+            ${(upload.semester || sourceUpload?.semester) ? `<span class="upload-badge">Semester ${escapeHTML(upload.semester || sourceUpload.semester)}</span>` : ""}
+            ${(upload.department || sourceUpload?.department) ? `<span class="upload-badge">${escapeHTML(upload.department || sourceUpload.department)}</span>` : ""}
+          </div>
+          <small class="upload-date">${isDownload ? `Downloaded ${escapeHTML(upload.downloadedAt || "")}` : escapeHTML(upload.date || "")}</small>
+          ${!isDownload && upload.uploaderName ? `<small class="upload-date">Uploaded by ${escapeHTML(upload.uploaderName)}</small>` : ""}
+        </div>
+      </div>
+      <div class="upload-item-actions">${actions}</div>
+    </article>`;
+}
+
+function renderMyUploads() {
+  renderWelcome();
+  const uploads = readUploadList("paperpilot_uploads");
+  const downloads = activeUploadsTab === "downloads";
+  renderQuickAccessCounts();
+  $("#uploadsControls").classList.toggle("hidden", downloads);
+  $("#clearDownloadsBtn").classList.toggle("hidden", !downloads || downloads.length === 0);
+  $("#uploadsTab").classList.toggle("active", !downloads);
+  $("#downloadsTab").classList.toggle("active", downloads);
+  $("#uploadsTab").setAttribute("aria-selected", String(!downloads));
+  $("#downloadsTab").setAttribute("aria-selected", String(downloads));
+
+  const grid = $("#uploadsGrid");
+  if (downloads) {
+    const history = readUploadList("paperpilot_downloads");
+    grid.innerHTML = history.length
+      ? history.map(item => renderUploadCard(item, true)).join("")
+      : '<div class="empty-state uploads-empty"><span aria-hidden="true">↓</span><strong>No downloads yet.</strong></div>';
+    return;
+  }
+
+  updateUploadFilters(uploads);
+  const query = $("#uploadsSearch").value.trim().toLowerCase();
+  const subject = $("#uploadsSubjectFilter").value;
+  const semester = $("#uploadsSemesterFilter").value;
+  const filtered = uploads.filter(upload =>
+    (!query || String(upload.fileName || "").toLowerCase().includes(query)) &&
+    (!subject || upload.subject === subject) &&
+    (!semester || String(upload.semester) === semester)
+  );
+  grid.innerHTML = filtered.length
+    ? filtered.map(item => renderUploadCard(item)).join("")
+    : uploads.length
+      ? '<div class="empty-state uploads-empty"><span aria-hidden="true">⌕</span><strong>No results found</strong></div>'
+      : '<div class="empty-state uploads-empty"><span aria-hidden="true">▤</span><strong>No resources yet. Be the first to upload!</strong></div>';
+}
+
+function renderSelectedFiles() {
+  const container = $("#selectedFiles");
+  selectedFiles.forEach(item => {
+    if (item.nameInput) item.fileName = item.nameInput.value;
+  });
+  const sameInfo = $("#sameInfoCheckbox").checked;
+  container.innerHTML = selectedFiles.map((item, index) => {
+    const type = item.file.name.split(".").pop().toUpperCase();
+    const draftInfo = item.draftInfo || {};
+    const individualFields = sameInfo ? "" : `
+      <div class="individual-file-fields">
+        <label>Subject<input class="file-subject" value="${escapeHTML(draftInfo.subject || getUploadSubject())}" aria-label="Subject for ${escapeHTML(item.file.name)}"></label>
+        <label>Semester<select class="file-semester" aria-label="Semester for ${escapeHTML(item.file.name)}">
+          ${Array.from({ length: 8 }, (_, semesterIndex) => {
+            const semester = String(semesterIndex + 1);
+            return `<option value="${semester}" ${String(draftInfo.semester || $("#uploadSemester").value) === semester ? "selected" : ""}>Semester ${semester}</option>`;
+          }).join("")}
+        </select></label>
+        <label>Category<select class="file-category" aria-label="Category for ${escapeHTML(item.file.name)}">
+          ${["", "Notes", "Past Papers", "Slides", "Books", "Assignments", "Other"].map(category =>
+            `<option value="${escapeHTML(category)}" ${String(draftInfo.category || $("#uploadCategory").value) === category ? "selected" : ""}>${escapeHTML(category || "Select category")}</option>`
+          ).join("")}
+        </select></label>
+      </div>`;
+    return `<div class="selected-file-row" data-file-index="${index}">
+      <span class="file-type-icon ${fileIconType(type)[1]}" aria-hidden="true">${escapeHTML(type)}</span>
+      <label class="file-name-field">File name<input class="selected-file-name" value="${escapeHTML(item.draftInfo?.fileName || item.fileName || item.file.name)}" aria-label="File name ${index + 1}"></label>
+      <button class="text-btn remove-selected-file" type="button" data-remove-file="${index}" aria-label="Remove ${escapeHTML(item.file.name)}">Remove</button>
+      ${individualFields}
+    </div>`;
+  }).join("");
+
+  selectedFiles = selectedFiles.map((item, index) => ({
+    ...item,
+    row: container.querySelector(`[data-file-index="${index}"]`),
+    nameInput: container.querySelector(`[data-file-index="${index}"] .selected-file-name`)
+  }));
+}
+
+function addSelectedFiles(fileList) {
+  const allowed = new Set(["pdf", "docx", "png", "jpg"]);
+  const rejected = [];
+  [...fileList].forEach(file => {
+    const extension = file.name.split(".").pop().toLowerCase();
+    if (!allowed.has(extension)) {
+      rejected.push(file.name);
+      return;
+    }
+    if (!selectedFiles.some(item => item.file.name === file.name && item.file.size === file.size)) {
+      const draftIndex = restoredDraftFiles.findIndex(item => item.originalName === file.name);
+      const draftInfo = draftIndex >= 0 ? restoredDraftFiles.splice(draftIndex, 1)[0] : null;
+      selectedFiles.push({ file, nameInput: null, row: null, draftInfo });
+    }
+  });
+  if (rejected.length) showToast(`Unsupported file type: ${rejected.join(", ")}`, "error");
+  $("#draftNotice").classList.toggle("hidden", restoredDraftFiles.length === 0);
+  if (restoredDraftFiles.length) {
+    $("#draftNotice").textContent = `Re-select the remaining draft files to restore their names. File contents are not stored in drafts.`;
+  }
+  renderSelectedFiles();
+}
+
+function saveDownload(upload) {
+  const history = readUploadList("paperpilot_downloads");
+  const downloadedAt = new Date().toLocaleString();
+  const existingIndex = history.findIndex(item => String(item.id) === String(upload.id));
+  const record = {
+    id: upload.id,
+    fileName: upload.fileName,
+    subject: upload.subject,
+    downloadedAt
+  };
+  if (existingIndex >= 0) history[existingIndex] = record;
+  else history.unshift(record);
+  try {
+    localStorage.setItem("paperpilot_downloads", JSON.stringify(history));
+  } catch (error) {
+    showToast("Could not save download history in this browser.", "error");
+    return;
+  }
+
+  const file = uploadFileObjects.get(upload.id);
+  if (file) {
+    const url = URL.createObjectURL(file);
+    triggerResourceDownload(url, upload.fileName, true);
+  } else {
+    showToast("Download history updated. The original file is not stored after this session.", "notice");
+  }
+  renderQuickAccessCounts();
+  if (activeUploadsTab === "downloads") renderMyUploads();
+}
+
+function updateUploadRecord(id, updater) {
+  const uploads = readUploadList("paperpilot_uploads");
+  const updated = uploads.map(upload => String(upload.id) === String(id) ? updater(upload) : upload);
+  localStorage.setItem("paperpilot_uploads", JSON.stringify(updated));
+  renderMyUploads();
+}
+
+function setUserName() {
+  const name = prompt("What name should PaperPilot use?");
+  if (name === null) return;
+  const trimmedName = name.trim();
+  if (!trimmedName) {
+    showToast("Please enter a name.", "error");
+    return;
+  }
+  localStorage.setItem("paperpilot_user", trimmedName);
+  renderWelcome();
+}
+
 /* =====================================================
    10. EVENT LISTENERS
 ===================================================== */
@@ -1270,24 +1624,15 @@ $("#allSubjectsBtn").addEventListener("click", () => {
   if (departmentName) {
     openDepartment(departmentName);
   } else {
-    goHome();
-    $("#departmentGrid").scrollIntoView({ behavior: "smooth" });
+    openBrowseDepartments();
   }
 });
 
 $("#resourcesNav").addEventListener("click", openLibrary);
 $("#uploadNav").addEventListener("click", () => openUpload());
-$("#topUploadBtn").addEventListener("click", () => openUpload());
-$("#bannerUploadBtn").addEventListener("click", () => openUpload());
-
-$("#subjectUploadBtn").addEventListener("click", () => {
-  openUpload({
-    department: selectedDepartment,
-    semester: selectedSemester,
-    subject: selectedSubject
-  });
+$$("[data-open-my-files]").forEach(card => {
+  card.addEventListener("click", () => openMyFiles(card.dataset.openMyFiles));
 });
-
 $("#searchForm").addEventListener("submit", searchCatalog);
 $("#searchResults").addEventListener("click", handleSearchResult);
 
@@ -1295,6 +1640,13 @@ $("#departmentGrid").addEventListener("click", event => {
   const card = event.target.closest("[data-department]");
   if (card) openDepartment(card.dataset.department);
 });
+
+$("#browseDepartmentGrid").addEventListener("click", event => {
+  const card = event.target.closest("[data-department]");
+  if (card) openDepartment(card.dataset.department);
+});
+
+$("#browseAllDepartments").addEventListener("click", openBrowseDepartments);
 
 $("#semesterGrid").addEventListener("click", event => {
   const card = event.target.closest("[data-semester]");
@@ -1333,36 +1685,90 @@ $("#librarySearch").addEventListener("input", renderLibrary);
 $("#libraryDepartment").addEventListener("change", renderLibrary);
 $("#libraryType").addEventListener("change", renderLibrary);
 
-$("#uploadDepartment").addEventListener("change", populateUploadSemesters);
-$("#uploadSemester").addEventListener("change", populateUploadSubjects);
-
-$("#resourceFile").addEventListener("change", event => {
-  selectedUploadFile = event.target.files[0] || null;
-
-  $("#fileName").textContent = selectedUploadFile
-    ? `${selectedUploadFile.name} · ${(selectedUploadFile.size / 1024 / 1024).toFixed(2)} MB`
-    : "No file selected";
-
-  if (selectedUploadFile) {
-    const extension = selectedUploadFile.name.split(".").pop().toUpperCase();
-    const formatSelect = $("#uploadFormat");
-
-    const matchingOption = [...formatSelect.options].find(option =>
-      option.value === extension
-    );
-
-    if (matchingOption) formatSelect.value = extension;
-    formatSelect.syncStyledSelect?.();
+const fileInput = $("#fileInput");
+const fileDropZone = $("#fileDropZone");
+fileInput.addEventListener("change", event => {
+  addSelectedFiles(event.target.files);
+  fileInput.value = "";
+});
+fileDropZone.addEventListener("click", event => {
+  if (event.target !== fileInput) fileInput.click();
+});
+fileDropZone.addEventListener("keydown", event => {
+  if (event.key === "Enter" || event.key === " ") {
+    event.preventDefault();
+    fileInput.click();
   }
+});
+["dragenter", "dragover"].forEach(type => fileDropZone.addEventListener(type, event => {
+  event.preventDefault();
+  fileDropZone.classList.add("is-dragging");
+}));
+["dragleave", "drop"].forEach(type => fileDropZone.addEventListener(type, event => {
+  event.preventDefault();
+  fileDropZone.classList.remove("is-dragging");
+}));
+fileDropZone.addEventListener("drop", event => addSelectedFiles(event.dataTransfer.files));
+$("#sameInfoCheckbox").addEventListener("change", renderSelectedFiles);
+function clearUploadSubjectError() {
+  $("#uploadSubjectCustom").classList.remove("is-invalid");
+  $("#subjectError")?.remove();
+}
+
+$("#uploadDepartment").addEventListener("change", () => {
+  updateUploadSubjectOptions();
+  clearUploadSubjectError();
+});
+$("#uploadSemester").addEventListener("change", () => {
+  updateUploadSubjectOptions();
+  clearUploadSubjectError();
+});
+$("#uploadSubject").addEventListener("change", () => {
+  const customSelected = $("#uploadSubject").value === customSubjectValue;
+  $("#uploadSubjectCustom").classList.toggle("hidden", !customSelected);
+  $("#uploadSubjectCustom").required = customSelected;
+  if (customSelected) queueMicrotask(() => $("#uploadSubjectCustom").focus());
+  clearUploadSubjectError();
+});
+$("#uploadSubjectCustom").addEventListener("input", clearUploadSubjectError);
+$("#uploaderName").addEventListener("input", () => {
+  uploaderNameTouched = true;
+  $("#uploaderName").classList.remove("is-invalid");
+  $("#uploaderNameError")?.remove();
+});
+$("#selectedFiles").addEventListener("input", event => {
+  const row = event.target.closest(".selected-file-row");
+  if (row && event.target.matches(".selected-file-name")) {
+    const item = selectedFiles[Number(row.dataset.fileIndex)];
+    if (item) item.fileName = event.target.value;
+  }
+});
+$("#selectedFiles").addEventListener("click", event => {
+  const removeButton = event.target.closest("[data-remove-file]");
+  if (!removeButton) return;
+  selectedFiles.splice(Number(removeButton.dataset.removeFile), 1);
+  renderSelectedFiles();
 });
 
 $("#uploadForm").addEventListener("submit", submitUpload);
 $("#saveDraftBtn").addEventListener("click", saveUploadDraft);
+$("#uploadForm").addEventListener("input", () => {
+  if ($("#draftNotice").dataset.state === "error") {
+    $("#draftNotice").classList.add("hidden");
+    $("#draftNotice").dataset.state = "";
+  }
+});
+$("#uploadForm").addEventListener("change", () => {
+  if ($("#draftNotice").dataset.state === "error") {
+    $("#draftNotice").classList.add("hidden");
+    $("#draftNotice").dataset.state = "";
+  }
+});
 
 $("#cancelUpload").addEventListener("click", () => {
   $("#uploadForm").reset();
-  selectedUploadFile = null;
-  $("#fileName").textContent = "No file selected";
+  selectedFiles = [];
+  $("#selectedFiles").replaceChildren();
   goHome();
 });
 
@@ -1379,6 +1785,134 @@ $("#downloadBackBtn").addEventListener("click", () => {
 
 $("#downloadAction").addEventListener("click", downloadCurrentResource);
 
+function closeMobileNav() {
+  $("#primaryNav").classList.remove("is-open");
+  $("#navOverlay").classList.remove("is-visible");
+  $("#menuToggle").setAttribute("aria-expanded", "false");
+  $("#menuToggle").setAttribute("aria-label", "Open navigation menu");
+  document.body.classList.remove("nav-open");
+}
+
+$("#menuToggle").addEventListener("click", () => {
+  const isOpen = $("#primaryNav").classList.toggle("is-open");
+  $("#navOverlay").classList.toggle("is-visible", isOpen);
+  $("#menuToggle").setAttribute("aria-expanded", String(isOpen));
+  $("#menuToggle").setAttribute("aria-label", isOpen ? "Close navigation menu" : "Open navigation menu");
+  document.body.classList.toggle("nav-open", isOpen);
+});
+$("#navOverlay").addEventListener("click", closeMobileNav);
+$("#primaryNav").addEventListener("click", event => {
+  if (event.target.closest("button")) closeMobileNav();
+});
+
+$("#uploadsTab").addEventListener("click", () => {
+  activeUploadsTab = "uploads";
+  renderMyUploads();
+});
+$("#downloadsTab").addEventListener("click", () => {
+  activeUploadsTab = "downloads";
+  renderMyUploads();
+});
+$("#uploadsSearch").addEventListener("input", renderMyUploads);
+$("#uploadsSubjectFilter").addEventListener("change", renderMyUploads);
+$("#uploadsSemesterFilter").addEventListener("change", renderMyUploads);
+$("#clearDownloadsBtn").addEventListener("click", () => {
+  localStorage.setItem("paperpilot_downloads", "[]");
+  renderMyUploads();
+  showToast("Download history cleared.");
+});
+$("#userWelcome").addEventListener("click", event => {
+  if (event.target.closest("[data-set-name]")) setUserName();
+});
+$("#uploadsGrid").addEventListener("click", event => {
+  const action = event.target.closest("[data-upload-action]");
+  if (!action) return;
+  const id = action.dataset.id;
+  const upload = readUploadList("paperpilot_uploads").find(item => String(item.id) === String(id));
+  switch (action.dataset.uploadAction) {
+    case "rename": {
+      const card = action.closest(".upload-item-card");
+      const title = card.querySelector(".upload-file-name");
+      const oldName = title.textContent;
+      title.outerHTML = `<form class="inline-rename-form"><input class="inline-rename-input" value="${escapeHTML(oldName)}" aria-label="New file name"><button class="primary-btn" type="submit">Save</button><button class="text-btn" type="button" data-cancel-rename>Cancel</button></form>`;
+      const input = card.querySelector(".inline-rename-input");
+      input.focus();
+      input.select();
+      break;
+    }
+    case "delete":
+      if (!upload) return;
+      pendingDeleteId = id;
+      $("#deleteModalMessage").textContent = `Are you sure you want to delete ${upload.fileName}? Cannot be undone.`;
+      $("#deleteModal").classList.remove("hidden");
+      $("#confirmDeleteBtn").focus();
+      break;
+    case "download":
+      if (upload) saveDownload(upload);
+      break;
+    case "download-again": {
+      const record = readUploadList("paperpilot_downloads").find(item => String(item.id) === String(id));
+      if (record) saveDownload(record);
+      break;
+    }
+    case "remove-history":
+      localStorage.setItem("paperpilot_downloads", JSON.stringify(readUploadList("paperpilot_downloads").filter(item => String(item.id) !== String(id))));
+      renderMyUploads();
+      showToast("Download removed from history.");
+      break;
+    default:
+      break;
+  }
+});
+$("#uploadsGrid").addEventListener("submit", event => {
+  if (!event.target.matches(".inline-rename-form")) return;
+  event.preventDefault();
+  const card = event.target.closest(".upload-item-card");
+  const id = card.dataset.uploadCard;
+  const fileName = event.target.querySelector("input").value.trim();
+  if (!fileName) {
+    showToast("File name cannot be empty.", "error");
+    return;
+  }
+  try {
+    updateUploadRecord(id, upload => ({ ...upload, fileName }));
+    showToast("File renamed.");
+  } catch (error) {
+    showToast("Could not save the new file name.", "error");
+  }
+});
+$("#uploadsGrid").addEventListener("click", event => {
+  if (event.target.closest("[data-cancel-rename]")) renderMyUploads();
+});
+$("#cancelDeleteBtn").addEventListener("click", () => {
+  pendingDeleteId = null;
+  $("#deleteModal").classList.add("hidden");
+});
+$("#confirmDeleteBtn").addEventListener("click", () => {
+  if (pendingDeleteId === null) return;
+  try {
+    localStorage.setItem("paperpilot_uploads", JSON.stringify(
+      readUploadList("paperpilot_uploads").filter(item => String(item.id) !== String(pendingDeleteId))
+    ));
+    uploadFileObjects.delete(Number(pendingDeleteId));
+    showToast("Upload deleted.");
+  } catch (error) {
+    showToast("Could not delete the upload from this browser.", "error");
+  }
+  pendingDeleteId = null;
+  $("#deleteModal").classList.add("hidden");
+  renderMyUploads();
+});
+$("#deleteModal").addEventListener("click", event => {
+  if (event.target === $("#deleteModal")) $("#cancelDeleteBtn").click();
+});
+document.addEventListener("keydown", event => {
+  if (event.key === "Escape") {
+    closeMobileNav();
+    if (!$("#deleteModal").classList.contains("hidden")) $("#cancelDeleteBtn").click();
+  }
+});
+
 /* =====================================================
    11. INITIALIZE WEBSITE
 ===================================================== */
@@ -1392,3 +1926,4 @@ $("#themeToggle").addEventListener("click", () => {
 populateDepartmentDropdowns();
 renderDepartmentCards();
 initializeStyledSelects();
+renderMyUploads();
