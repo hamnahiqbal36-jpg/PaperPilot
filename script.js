@@ -421,6 +421,8 @@ let activeUploadsTab = "uploads";
 let pendingDeleteId = null;
 const uploadFileObjects = new Map();
 let toastTimer;
+let isLoggedIn = false;
+let authenticatedUser = null;
 
 function saveResources() {
   // Browser object URLs are temporary and must not be treated as permanent links.
@@ -460,7 +462,7 @@ function getSubjects(departmentName, semester) {
   return department?.semesters[Number(semester) - 1] || [];
 }
 
-function showToast(message, status = "notice") {
+function showToast(message, status = "notice", duration = 3000) {
   const toast = $("#toast");
   toast.dataset.status = status;
   if (status.startsWith("download-")) {
@@ -476,7 +478,7 @@ function showToast(message, status = "notice") {
   }
   toast.classList.add("show");
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => toast.classList.remove("show"), 3000);
+  toastTimer = setTimeout(() => toast.classList.remove("show"), duration);
 }
 
 function syncStyledSelects() {
@@ -511,8 +513,10 @@ function initializeStyledSelects() {
         .join(" ")
         .replace(/\s+/g, " ")
       : "";
+    const requiredMarker = label?.querySelector(".required-mark");
+    const accessibleLabel = requiredMarker ? `${labelText} *` : labelText;
     const accessibleName = select.getAttribute("aria-label") ||
-      labelText || fallbackLabels[select.id] || "Choose an option";
+      accessibleLabel || fallbackLabels[select.id] || "Choose an option";
     const field = document.createElement("div");
     field.className = "select-field";
     const control = document.createElement("div");
@@ -522,7 +526,10 @@ function initializeStyledSelects() {
       const caption = document.createElement("span");
       caption.className = "select-field-label";
       caption.classList.add(...label.classList);
-      caption.textContent = labelText;
+      caption.append(document.createTextNode(labelText));
+      if (requiredMarker) {
+        caption.append(document.createTextNode(" "), requiredMarker.cloneNode(true));
+      }
       caption.id = `${select.id}-label`;
       label.parentNode.insertBefore(field, label);
       label.remove();
@@ -693,7 +700,6 @@ function renderDepartmentCards() {
     <span class="department-card-action">View semesters →</span>
     </button>
   `).join("");
-  $("#departmentGrid").innerHTML = cards;
   $("#browseDepartmentGrid").innerHTML = cards;
 }
 
@@ -701,23 +707,36 @@ function renderDepartmentCards() {
    4. PAGE NAVIGATION
 ===================================================== */
 
-function showPage(pageId, heading) {
+function showPage(pageId, heading, updateHistory = true) {
   $$(".page").forEach(page => {
     page.classList.toggle("active", page.id === pageId);
   });
+  document.body.classList.toggle("semester-subjects-active", pageId === "semesterSubjectsPage");
+
+  if (updateHistory) {
+    history.pushState({
+      paperPilotPage: pageId,
+      heading,
+      department: selectedDepartment,
+      semester: selectedSemester,
+      subject: selectedSubject,
+      previousPage
+    }, "");
+  }
 
   $$(".nav-link").forEach(link => link.classList.remove("active"));
 
   const navMap = {
-    dashboardPage: ".nav-link[data-home]",
-    browsePage: "#allSubjectsBtn",
+    "dashboard-view": ".nav-link[data-home]",
+    "departments-view": "#allSubjectsBtn",
+    semesterSubjectsPage: "#allSubjectsBtn",
     subjectPage: "#resourcesNav",
     libraryPage: "#resourcesNav",
     downloadPage: "#resourcesNav",
     uploadPage: "#uploadNav"
   };
 
-  const activeLink = document.querySelector(navMap[pageId]);
+  const activeLink = navMap[pageId] ? document.querySelector(navMap[pageId]) : null;
   if (activeLink) {
     activeLink.classList.add("active");
     activeLink.setAttribute("aria-current", "page");
@@ -734,26 +753,86 @@ function showPage(pageId, heading) {
   syncStyledSelects();
 }
 
+document.addEventListener("paperpilot:navigate", event => {
+  const { pageId, heading } = event.detail;
+  showPage(pageId, heading);
+});
+
+document.addEventListener("paperpilot:auth-state", event => {
+  authenticatedUser = event.detail.user;
+  updateAuthUI();
+});
+
+document.addEventListener("paperpilot:notify", event => {
+  showToast(event.detail.message, event.detail.status);
+});
+
 function goHome() {
-  showPage("dashboardPage", "Dashboard");
+  showPage("dashboard-view", "Dashboard");
 }
 
-function openBrowseDepartments() {
+function updateAuthUI() {
+  isLoggedIn = Boolean(authenticatedUser);
+  localStorage.setItem("isLoggedIn", String(isLoggedIn));
+  if (authenticatedUser?.displayName) {
+    localStorage.setItem("paperpilot_user", authenticatedUser.displayName);
+  } else if (!authenticatedUser) {
+    localStorage.removeItem("paperpilot_user");
+  }
+  renderWelcome();
+}
+
+function openLogin(reason = "", updateHistory = true) {
+  const requirement = $("#loginRequirement");
+  const requirementTitle = $("#loginRequirementTitle");
+  const requirementMessage = $("#loginRequirementMessage");
+  const loginRequirements = {
+    upload: {
+      title: "Sign in to upload a resource",
+      message: "Sign in or create an account before uploading. Your account helps you manage the resources you share."
+    },
+    uploads: {
+      title: "Sign in to view your upload history",
+      message: "Sign in or create an account to see the resources you have uploaded."
+    },
+    downloads: {
+      title: "Sign in to view your download history",
+      message: "Sign in or create an account to see the resources you have downloaded."
+    }
+  };
+  const loginRequirement = loginRequirements[reason];
+  requirement.classList.toggle("hidden", !loginRequirement);
+  requirementTitle.textContent = loginRequirement?.title || "";
+  requirementMessage.textContent = loginRequirement?.message || "";
+
+  const feedback = $("#authFeedback");
+  if (window.location.protocol !== "file:") {
+    feedback.textContent = "";
+    delete feedback.dataset.status;
+  }
+  if (window.location.protocol === "file:") {
+    feedback.textContent = "Firebase sign-in needs an HTTP or HTTPS address. Open PaperPilot through localhost or its hosted website.";
+    feedback.dataset.status = "error";
+  }
+  showPage("login-view", "Login", updateHistory);
+}
+
+function openBrowseDepartments(updateHistory = true) {
   selectedDepartment = "";
-  $("#departmentTitle").textContent = "Browse departments";
+  $("#departmentTitle").textContent = "Browse Departments";
   $("#departmentDescription").textContent = "Choose a department to explore its semesters and subjects.";
+  $("#departmentDescription").classList.add("hidden");
   $("#browseDepartmentGrid").classList.remove("hidden");
   $("#browseAllDepartments").classList.add("hidden");
   $("#semesterGrid").classList.add("hidden");
-  $("#subjectSection").classList.add("hidden");
-  showPage("browsePage", "Browse Departments");
+  showPage("departments-view", "Browse Departments", updateHistory);
 }
 
 /* =====================================================
    5. DEPARTMENT → SEMESTER → SUBJECT
 ===================================================== */
 
-function openDepartment(departmentName) {
+function openDepartment(departmentName, updateHistory = true) {
   const department = getDepartment(departmentName);
   if (!department) return;
 
@@ -763,13 +842,13 @@ function openDepartment(departmentName) {
   $("#departmentTitle").textContent = `${department.name} (${department.degree})`;
   $("#departmentDescription").textContent =
     `${department.description} Select a semester to view its complete subject list.`;
+  $("#departmentDescription").classList.remove("hidden");
 
   renderSemesters();
   $("#browseDepartmentGrid").classList.add("hidden");
   $("#browseAllDepartments").classList.remove("hidden");
   $("#semesterGrid").classList.remove("hidden");
-  $("#subjectSection").classList.add("hidden");
-  showPage("browsePage", department.name);
+  showPage("departments-view", department.name, updateHistory);
 }
 
 function renderSemesters() {
@@ -790,20 +869,16 @@ function renderSemesters() {
   }).join("");
 }
 
-function openSemester(semester) {
-  selectedSemester = Number(semester);
+function openSemester(semester, updateHistory = true) {
+  const parsedSemester = Number(semester);
+  if (!Number.isInteger(parsedSemester) || parsedSemester < 1 || parsedSemester > 8 || !getDepartment(selectedDepartment)) return;
+  selectedSemester = parsedSemester;
   renderSemesters();
 
   const subjects = getSubjects(selectedDepartment, selectedSemester);
-
-  $("#semesterEyebrow").textContent =
+  $("#semesterSubjectsBreadcrumb").textContent =
     `${selectedDepartment.toUpperCase()} · SEMESTER ${selectedSemester}`;
-
-  $("#subjectHeading").innerHTML = `
-    <span>Semester ${selectedSemester}</span>
-    <span class="semester-heading-arrow" aria-hidden="true">→</span>
-    <span>Subjects</span>
-  `;
+  $("#semesterSubjectsTitle").textContent = `Semester ${selectedSemester} → Subjects`;
 
   $("#subjectGrid").innerHTML = subjects.map((subject, index) => {
     const count = resources.filter(resource =>
@@ -824,9 +899,42 @@ function openSemester(semester) {
     `;
   }).join("");
 
-  $("#subjectSection").classList.remove("hidden");
-  $("#subjectSection").scrollIntoView({ behavior: "smooth", block: "start" });
+  showPage("semesterSubjectsPage", `Semester ${selectedSemester} Subjects`, updateHistory);
 }
+
+window.addEventListener("popstate", event => {
+  const route = event.state;
+  if (!route?.paperPilotPage) {
+    showPage("dashboard-view", "Dashboard", false);
+    return;
+  }
+
+  selectedDepartment = route.department || "";
+  selectedSemester = Number(route.semester) || 1;
+  selectedSubject = route.subject || "";
+  previousPage = route.previousPage || "departments-view";
+
+  if (route.paperPilotPage === "departments-view") {
+    if (selectedDepartment) openDepartment(selectedDepartment, false);
+    else openBrowseDepartments(false);
+    return;
+  }
+
+  if (route.paperPilotPage === "semesterSubjectsPage") {
+    openSemester(selectedSemester, false);
+    return;
+  }
+
+  if (!isLoggedIn && ["myFilesPage", "uploadPage"].includes(route.paperPilotPage)) {
+    const loginReason = route.paperPilotPage === "uploadPage"
+      ? "upload"
+      : route.heading === "My Downloads" ? "downloads" : "uploads";
+    openLogin(loginReason, false);
+    return;
+  }
+
+  showPage(route.paperPilotPage, route.heading || "Dashboard", false);
+});
 
 function openSubject(subject) {
   selectedSubject = subject;
@@ -1045,8 +1153,7 @@ function handleSearchResult(event) {
   }
 
   if (event.target.closest("#browseAllResult")) {
-    goHome();
-    $("#departmentGrid").scrollIntoView({ behavior: "smooth" });
+    openBrowseDepartments();
   }
 }
 
@@ -1064,8 +1171,16 @@ function getUploadSubject() {
 
 function updateUploadSubjectOptions(preferredSubject = "") {
   const subjectSelect = $("#uploadSubject");
+  const semesterSelect = $("#uploadSemester");
   const department = $("#uploadDepartment").value;
-  const semester = $("#uploadSemester").value;
+  semesterSelect.disabled = !department;
+  if (!department) semesterSelect.value = "";
+  const semester = semesterSelect.value;
+  const semesterPlaceholder = semesterSelect.options[0];
+  if (semesterPlaceholder) {
+    semesterPlaceholder.textContent = department ? "Select semester" : "Select department first";
+  }
+  semesterSelect.syncStyledSelect?.();
   const departmentAliases = {
     CS: "Computer Systems Engineering",
     SE: "Software Engineering"
@@ -1074,7 +1189,7 @@ function updateUploadSubjectOptions(preferredSubject = "") {
   const subjects = department && semester ? getSubjects(subjectDepartment, semester) : [];
   const ready = Boolean(department && semester);
   const options = !ready
-    ? [new Option("Select department and semester first", "")]
+    ? [new Option(department ? "Select semester first" : "Select department first", "")]
     : subjects.length
       ? [
         new Option("Select a subject", ""),
@@ -1101,12 +1216,19 @@ function updateUploadSubjectOptions(preferredSubject = "") {
       ? subjects.length
         ? "Subjects shown are for the selected department and semester."
         : "No subject list is available here. Choose manual entry to continue."
-      : "Choose a department and semester to see the subject list.";
+      : department
+        ? "Now choose a semester to see the available subjects."
+        : "Choose a department first. Then select a semester.";
   }
   subjectSelect.syncStyledSelect?.();
 }
 
 function openUpload(prefill = {}) {
+  if (!isLoggedIn) {
+    openLogin("upload");
+    return;
+  }
+
   $("#uploadForm").reset();
   selectedFiles = [];
   restoredDraftFiles = [];
@@ -1315,7 +1437,8 @@ function submitUpload(event) {
         draftClearFailed
           ? "Upload saved, but its draft could not be cleared."
           : `${addedUploads.length} file${addedUploads.length === 1 ? "" : "s"} uploaded successfully.`,
-        draftClearFailed ? "error" : "notice"
+        draftClearFailed ? "error" : "notice",
+        draftClearFailed ? 3000 : 2000
       );
       renderMyUploads();
       goHome();
@@ -1361,7 +1484,7 @@ function triggerResourceDownload(url, filename, revokeUrl = false) {
   link.click();
   link.remove();
 
-  setTimeout(() => showToast("Download complete", "download-complete"), 600);
+  setTimeout(() => showToast("Download complete", "download-complete", 2000), 600);
   if (revokeUrl) setTimeout(() => URL.revokeObjectURL(url), 1500);
 }
 
@@ -1405,6 +1528,11 @@ function renderQuickAccessCounts() {
 }
 
 function openMyFiles(tab = "uploads") {
+  if (!isLoggedIn) {
+    openLogin(tab === "downloads" ? "downloads" : "uploads");
+    return;
+  }
+
   activeUploadsTab = tab;
   renderMyUploads();
   showPage("myFilesPage", tab === "uploads" ? "My Uploads" : "My Downloads");
@@ -1614,6 +1742,9 @@ $$("[data-home]").forEach(button => {
   button.addEventListener("click", goHome);
 });
 
+$("#loginNavButton").addEventListener("click", openLogin);
+$("#loginBackButton").addEventListener("click", goHome);
+
 $$("[data-back-home]").forEach(button => {
   button.addEventListener("click", goHome);
 });
@@ -1636,11 +1767,6 @@ $$("[data-open-my-files]").forEach(card => {
 $("#searchForm").addEventListener("submit", searchCatalog);
 $("#searchResults").addEventListener("click", handleSearchResult);
 
-$("#departmentGrid").addEventListener("click", event => {
-  const card = event.target.closest("[data-department]");
-  if (card) openDepartment(card.dataset.department);
-});
-
 $("#browseDepartmentGrid").addEventListener("click", event => {
   const card = event.target.closest("[data-department]");
   if (card) openDepartment(card.dataset.department);
@@ -1658,9 +1784,21 @@ $("#subjectGrid").addEventListener("click", event => {
   if (card) openSubject(card.dataset.subject);
 });
 
+$("#backToSemesters").addEventListener("click", () => {
+  if (history.state?.paperPilotPage === "semesterSubjectsPage" && history.length > 1) {
+    history.back();
+  } else {
+    openDepartment(selectedDepartment);
+  }
+});
+
 $("#backToSubjects").addEventListener("click", () => {
-  openDepartment(selectedDepartment);
-  openSemester(selectedSemester);
+  if (history.state?.paperPilotPage === "subjectPage" && history.length > 1) {
+    history.back();
+  } else {
+    openDepartment(selectedDepartment);
+    openSemester(selectedSemester);
+  }
 });
 
 $("#resourceFilters").addEventListener("click", event => {
@@ -1716,6 +1854,7 @@ function clearUploadSubjectError() {
 }
 
 $("#uploadDepartment").addEventListener("change", () => {
+  $("#uploadSemester").value = "";
   updateUploadSubjectOptions();
   clearUploadSubjectError();
 });
@@ -1927,3 +2066,12 @@ populateDepartmentDropdowns();
 renderDepartmentCards();
 initializeStyledSelects();
 renderMyUploads();
+updateAuthUI();
+history.replaceState({
+  paperPilotPage: "dashboard-view",
+  heading: "Dashboard",
+  department: "",
+  semester: 1,
+  subject: "",
+  previousPage: "departments-view"
+}, "");

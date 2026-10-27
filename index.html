@@ -4,16 +4,26 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>PaperPilot | Academic Resource Hub</title>
+  <script type="importmap">
+    {
+      "imports": {
+        "firebase/app": "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js",
+        "firebase/auth": "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js"
+      }
+    }
+  </script>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
   <header class="site-header">
     <div class="nav-shell">
     <a class="brand" href="#" data-home aria-label="PaperPilot dashboard">
-      <svg class="brand-plane" viewBox="0 0 24 24" aria-hidden="true"><path d="M21.5 2.8 14.7 21c-.3.8-1.4.9-1.8.1l-3.5-6.1-6.1-3.5c-.8-.4-.7-1.5.1-1.8l18.1-6.8ZM11 13l3 5.2 4.8-12.8L6 10.2 11 13Z" fill="currentColor"/></svg>
-      <span>PaperPilot</span>
+      <picture class="brand-mark" aria-hidden="true">
+        <img class="brand-mark-light" src="paperpilot-plane-light.png" alt="">
+        <img class="brand-mark-dark" src="paperpilot-plane-dark.png" alt="">
+      </picture>
+      <span class="brand-wordmark">PaperPilot</span>
     </a>
-
     <button class="menu-toggle" id="menuToggle" type="button" aria-label="Open navigation menu" aria-expanded="false">☰</button>
 
     <nav class="primary-nav" id="primaryNav" aria-label="Main navigation">
@@ -21,12 +31,17 @@
       <button class="nav-link" id="allSubjectsBtn"><span>Browse Departments</span></button>
       <button class="nav-link" id="resourcesNav"><span>Resource Library</span></button>
       <button class="nav-link" id="uploadNav"><span>Upload Resource</span></button>
+      <button class="nav-link hidden" id="logoutNav" type="button"><span>Logout</span></button>
     </nav>
 
     <div class="nav-actions">
       <button class="theme-toggle" id="themeToggle" type="button" aria-label="Switch to dark theme" title="Switch to dark theme" aria-pressed="false">
         <span aria-hidden="true">☾</span><span class="theme-label">Dark mode</span>
       </button>
+      <div class="auth-actions">
+        <button class="login-nav-button" id="loginNavButton" type="button">Login</button>
+        <button class="user-avatar hidden" id="userAvatar" type="button" aria-label="Account signed in">A</button>
+      </div>
     </div>
     </div>
   </header>
@@ -40,7 +55,7 @@
       </div>
     </header>
 
-    <section id="dashboardPage" class="page active">
+    <section id="dashboard-view" class="page active">
       <div class="hero">
         <div class="hero-copy">
           <span class="pill">YOUR CAMPUS RESOURCE HUB</span>
@@ -100,21 +115,37 @@
         </div>
       </section>
 
-      <div class="section-heading">
-        <div>
-          <p class="eyebrow">EXPLORE YOUR FIELD</p>
-          <h2>Browse departments</h2>
-          <p class="muted">Select a department to explore its semesters and subjects.</p>
-        </div>
-      </div>
-      <div id="departmentGrid" class="department-grid"></div>
+    </section>
 
-      <div class="bottom-banner">
-        <div>
-          <p class="eyebrow">SHARE KNOWLEDGE</p>
-          <h2>Have useful study material?</h2>
-          <p>Help other students by adding your notes, slides or past papers.</p>
-        </div>
+    <section id="login-view" class="page">
+      <div class="login-card">
+        <aside id="loginRequirement" class="login-requirement hidden" role="status" aria-live="polite">
+          <strong id="loginRequirementTitle"></strong>
+          <p id="loginRequirementMessage"></p>
+        </aside>
+        <h1>Welcome to PaperPilot</h1>
+        <button class="primary-btn google-login-button" id="google-login-btn" type="button">
+          <span class="google-mark" aria-hidden="true">G</span>
+          <span id="google-login-label">Continue with Google</span>
+        </button>
+        <div class="login-divider"><span>or continue with email</span></div>
+        <form id="emailLoginForm" class="email-login-form">
+          <label id="loginNameField" class="hidden">Full name <span class="required-mark" aria-hidden="true">*</span>
+            <input id="loginName" type="text" autocomplete="name" maxlength="80">
+          </label>
+          <label>Email <span class="required-mark" aria-hidden="true">*</span>
+            <input id="loginEmail" type="email" autocomplete="email" required aria-describedby="loginEmailHint" placeholder="name@example.com">
+            <span id="loginEmailHint" class="field-hint">Example: name@example.com</span>
+          </label>
+          <label>Password <span class="required-mark" aria-hidden="true">*</span>
+            <input id="loginPassword" type="password" autocomplete="current-password" minlength="6" required aria-describedby="loginPasswordHint" placeholder="At least 6 characters">
+            <span id="loginPasswordHint" class="field-hint">Use at least 6 characters.</span>
+          </label>
+          <button class="primary-btn" id="emailLoginSubmit" type="submit">Sign in</button>
+        </form>
+        <button class="auth-mode-toggle" id="authModeToggle" type="button">Create an account</button>
+        <p id="authFeedback" class="auth-feedback" role="status" aria-live="polite"></p>
+        <button class="back-link" id="loginBackButton" type="button">← Back to dashboard</button>
       </div>
     </section>
 
@@ -150,25 +181,25 @@
       </section>
     </section>
 
-    <section id="browsePage" class="page">
+    <section id="departments-view" class="page">
       <button class="back-link" data-back-home>← Back to dashboard</button>
       <div class="page-intro">
         <p class="eyebrow">DEPARTMENT EXPLORER</p>
-        <h1 id="departmentTitle">Browse departments</h1>
+        <h1 id="departmentTitle">Browse Departments</h1>
         <p id="departmentDescription" class="muted">Choose a department to explore its semesters and subjects.</p>
       </div>
       <div id="browseDepartmentGrid" class="department-grid"></div>
       <button class="back-link hidden" id="browseAllDepartments" type="button">← All departments</button>
       <div id="semesterGrid" class="semester-grid hidden"></div>
-      <div id="subjectSection" class="subject-section hidden">
-        <div class="section-heading">
-          <div>
-            <p class="eyebrow" id="semesterEyebrow">SELECTED SEMESTER</p>
-            <h2 id="subjectHeading" class="semester-subject-heading">Subjects</h2>
-          </div>
-        </div>
-        <div id="subjectGrid" class="subject-grid"></div>
+    </section>
+
+    <section id="semesterSubjectsPage" class="page">
+      <div class="page-intro">
+        <p class="eyebrow" id="semesterSubjectsBreadcrumb">DEPARTMENT · SEMESTER 1</p>
+        <h1 id="semesterSubjectsTitle">Semester 1 → Subjects</h1>
       </div>
+      <button class="back-link" id="backToSemesters" type="button">← Back to semesters</button>
+      <div id="subjectGrid" class="subject-grid semester-subjects-grid"></div>
     </section>
 
     <section id="subjectPage" class="page">
@@ -232,10 +263,10 @@
         </div>
 
         <div class="form-grid">
-          <label>Uploaded By / Full Name *
+          <label>Uploaded By / Full Name <span class="required-mark" aria-hidden="true">*</span>
             <input id="uploaderName" required placeholder="Your full name" autocomplete="name">
           </label>
-          <label>Department *
+          <label>Department <span class="required-mark" aria-hidden="true">*</span>
             <select id="uploadDepartment" required>
               <option value="">Select department</option>
               <option value="CS">CS</option><option value="SE">SE</option>
@@ -246,23 +277,23 @@
               <option value="Textile Engineering">Textile Engineering</option>
             </select>
           </label>
-          <div class="form-grid-field">
-            <label for="uploadSubject">Subject *</label>
-            <select id="uploadSubject" required disabled aria-label="Subject">
-              <option value="">Select department and semester first</option>
-            </select>
-            <input id="uploadSubjectCustom" class="hidden" placeholder="Enter subject name" aria-label="Enter subject name">
-            <small id="uploadSubjectHint" class="field-hint">Choose a department and semester to see the subject list.</small>
-          </div>
-          <label>Semester *
-            <select id="uploadSemester" required>
-              <option value="">Select semester</option>
+          <label>Semester <span class="required-mark" aria-hidden="true">*</span>
+            <select id="uploadSemester" required disabled>
+              <option value="">Select department first</option>
               <option value="1">Semester 1</option><option value="2">Semester 2</option>
               <option value="3">Semester 3</option><option value="4">Semester 4</option>
               <option value="5">Semester 5</option><option value="6">Semester 6</option>
               <option value="7">Semester 7</option><option value="8">Semester 8</option>
             </select>
           </label>
+          <div class="form-grid-field">
+            <label for="uploadSubject">Subject <span class="required-mark" aria-hidden="true">*</span></label>
+            <select id="uploadSubject" required disabled aria-label="Subject">
+              <option value="">Select semester first</option>
+            </select>
+            <input id="uploadSubjectCustom" class="hidden" placeholder="Enter subject name" aria-label="Enter subject name">
+            <small id="uploadSubjectHint" class="field-hint">Choose a department, then semester, to see available subjects.</small>
+          </div>
           <label>Category
             <select id="uploadCategory">
               <option value="">Select category</option>
@@ -329,6 +360,53 @@
       </div>
     </div>
   </div>
+  <div class="logout-confirm-overlay hidden" id="logoutConfirmModal">
+    <section class="logout-confirm-card" role="dialog" aria-modal="true"
+      aria-labelledby="logoutConfirmTitle" aria-describedby="logoutConfirmDescription" tabindex="-1">
+      <div class="logout-confirm-icon" aria-hidden="true">!</div>
+      <h2 id="logoutConfirmTitle">Log out of PaperPilot?</h2>
+      <p id="logoutConfirmDescription">Are you sure you want to logout?</p>
+      <p id="logoutConfirmError" role="alert" aria-live="assertive"></p>
+      <div class="logout-confirm-actions">
+        <button class="logout-cancel-btn" id="cancelLogoutConfirm" type="button">No, Stay Signed In</button>
+        <button class="logout-yes-btn" id="confirmLogoutConfirm" type="button">Yes, Logout</button>
+      </div>
+    </section>
+  </div>
+  <div class="logout-confirm-overlay" id="googleSuccessModal" hidden>
+    <section class="google-success-card" role="dialog" aria-modal="true"
+      aria-labelledby="googleSuccessTitle" aria-describedby="googleSuccessMessage" tabindex="-1">
+      <div class="google-success-icon" aria-hidden="true">✓</div>
+      <h2 id="googleSuccessTitle">Successfully Signed In!</h2>
+      <p id="googleSuccessMessage"></p>
+      <p class="google-success-countdown">Opening your dashboard in 2 seconds.</p>
+      <button class="google-success-action" id="googleSuccessDashboard" type="button">Go to Dashboard</button>
+    </section>
+  </div>
+  <div class="logout-confirm-overlay" id="googleAccountModal" hidden>
+    <section class="google-review-card" role="dialog" aria-modal="true"
+      aria-labelledby="googleReviewTitle" aria-describedby="googleReviewDescription" tabindex="-1">
+      <h2 id="googleReviewTitle">Is this your account?</h2>
+      <p id="googleReviewDescription">You’re signing in to PaperPilot as:</p>
+      <div class="google-review-user">
+        <div class="google-review-avatar">
+          <img id="googleReviewPhoto" alt="" hidden>
+          <span id="googleReviewInitial">G</span>
+        </div>
+        <div class="google-review-user-details">
+          <p id="googleReviewName"></p>
+          <p id="googleReviewEmail"></p>
+        </div>
+      </div>
+      <p class="google-review-switch-hint">Not your account? Cancel and choose another.</p>
+      <p id="googleReviewError" class="google-review-error" role="alert" aria-live="assertive"></p>
+      <div class="logout-confirm-actions">
+        <button class="logout-cancel-btn" id="cancelGoogleReview" type="button">No, cancel</button>
+        <button class="logout-yes-btn" id="confirmGoogleReview" type="button">Yes, sign in</button>
+      </div>
+    </section>
+  </div>
   <script src="script.js"></script>
+  <script type="module" src="login.js"></script>
 </body>
 </html>
