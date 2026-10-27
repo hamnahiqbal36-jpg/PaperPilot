@@ -276,24 +276,29 @@ body[data-theme="dark"] .login-requirement p { color: #c9bddc; }
 .email-login-form input::placeholder { color: #9a92a8; opacity: 1; }
 .email-login-form .field-hint { color: var(--muted); font-size: 10px; font-weight: 400; line-height: 1.5; }
 .email-login-form .primary-btn { width: 100%; margin-top: 3px; }
-.forgot-password-button {
+#forgotPasswordButton.forgot-password-button {
+  display: inline-flex;
+  align-items: center;
   justify-self: start;
   min-height: 44px;
+  max-width: 100%;
   margin: -4px 0 0;
-  padding: 8px 2px;
+  padding: 8px 0;
   border: 0;
+  border-radius: 0;
   background: transparent;
-  color: var(--purple-dark);
+  color: #6a35c1;
   font-size: 12px;
   font-weight: 700;
   text-align: left;
   text-decoration: underline;
   text-underline-offset: 3px;
 }
-.forgot-password-button:hover { color: var(--primary-hover); }
-.forgot-password-button:disabled { cursor: wait; opacity: .6; }
-.forgot-password-button:focus-visible { outline: 3px solid var(--department-hover-border); outline-offset: 2px; border-radius: 4px; }
-body[data-theme="dark"] .forgot-password-button:hover { color: #d9c8ff; }
+#forgotPasswordButton.forgot-password-button:hover { background: transparent; color: #5427a5; }
+#forgotPasswordButton.forgot-password-button:disabled { cursor: wait; opacity: .6; }
+#forgotPasswordButton.forgot-password-button:focus-visible { outline: 3px solid var(--department-hover-border); outline-offset: 2px; border-radius: 4px; }
+body[data-theme="dark"] #forgotPasswordButton.forgot-password-button { color: #cbbcff; }
+body[data-theme="dark"] #forgotPasswordButton.forgot-password-button:hover { color: #e0d6ff; }
 .auth-mode-toggle { border: 0; padding: 4px; background: transparent; color: var(--purple-dark); font-size: 12px; font-weight: 700; }
 .auth-feedback { min-height: 16px; margin: 0; color: var(--muted); font-size: 11px; line-height: 1.5; }
 .auth-feedback[data-status="error"] { color: #b54869; }
@@ -1344,6 +1349,26 @@ body[data-theme="dark"] .site-header .menu-toggle:hover {
 }
 
 @media (max-width: 768px) {
+  .resource-actions {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 96px;
+    align-items: center;
+    justify-content: stretch;
+    width: 100%;
+  }
+
+  .resource-actions .primary-btn {
+    width: 96px;
+    min-height: 42px;
+    padding-right: 10px;
+    padding-left: 10px;
+    white-space: nowrap;
+  }
+
+  .resource-actions .resource-type {
+    justify-self: start;
+  }
+
   .site-header .primary-nav {
     width: min(340px, calc(100vw - 40px));
     max-width: 340px;
