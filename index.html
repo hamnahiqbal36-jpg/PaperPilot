@@ -24,9 +24,16 @@
       </picture>
       <span class="brand-wordmark">PaperPilot</span>
     </a>
-    <button class="menu-toggle" id="menuToggle" type="button" aria-label="Open navigation menu" aria-expanded="false">☰</button>
+    <button class="menu-toggle" id="menuToggle" type="button" aria-label="Open navigation menu" aria-controls="primaryNav" aria-expanded="false">☰</button>
 
     <nav class="primary-nav" id="primaryNav" aria-label="Main navigation">
+      <a class="mobile-nav-brand" href="#" data-home aria-label="PaperPilot dashboard">
+        <picture class="mobile-nav-mark" aria-hidden="true">
+          <img class="brand-mark-light" src="paperpilot-plane-light.png" alt="">
+          <img class="brand-mark-dark" src="paperpilot-plane-dark.png" alt="">
+        </picture>
+        <span class="mobile-nav-wordmark">PaperPilot</span>
+      </a>
       <button class="nav-link active" data-home><span>Dashboard</span></button>
       <button class="nav-link" id="allSubjectsBtn"><span>Browse Departments</span></button>
       <button class="nav-link" id="resourcesNav"><span>Resource Library</span></button>

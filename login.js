@@ -26,7 +26,13 @@ function setFeedback(message, status = "") {
   const feedback = $("#authFeedback");
   feedback.textContent = message;
   feedback.dataset.status = status;
+  feedback.setAttribute("role", status === "error" ? "alert" : "status");
+  feedback.setAttribute("aria-live", status === "error" ? "assertive" : "polite");
   feedback.style.color = status === "error" ? "#b54869" : "";
+}
+
+function markInvalidField(field) {
+  field.setAttribute("aria-invalid", "true");
 }
 
 function authErrorMessage(error) {
@@ -338,23 +344,30 @@ async function handleEmailLogin(event) {
   const email = $("#loginEmail").value.trim();
   const password = $("#loginPassword").value;
   const name = $("#loginName").value.trim();
+  [$("#loginName"), $("#loginEmail"), $("#loginPassword")].forEach(field => {
+    field.removeAttribute("aria-invalid");
+  });
   if (authMode === "signup" && !name) {
     setFeedback("Enter your name to create an account.", "error");
+    markInvalidField($("#loginName"));
     $("#loginName").focus();
     return;
   }
   if (!email) {
     setFeedback("Enter your email address.", "error");
+    markInvalidField($("#loginEmail"));
     $("#loginEmail").focus();
     return;
   }
   if (!password) {
     setFeedback("Enter your password.", "error");
+    markInvalidField($("#loginPassword"));
     $("#loginPassword").focus();
     return;
   }
   if (authMode === "signup" && password.length < 6) {
     setFeedback("Use a password with at least 6 characters.", "error");
+    markInvalidField($("#loginPassword"));
     $("#loginPassword").focus();
     return;
   }
@@ -370,11 +383,22 @@ async function handleEmailLogin(event) {
     }
   } catch (error) {
     console.error(`PaperPilot ${authMode} failed:`, error);
+    if (error?.code === "auth/invalid-email") {
+      markInvalidField($("#loginEmail"));
+      $("#loginEmail").focus();
+    }
     setFeedback(authErrorMessage(error), "error");
   } finally {
     setBusy(false);
   }
 }
+
+["#loginName", "#loginEmail", "#loginPassword"].forEach(selector => {
+  $(selector).addEventListener("input", event => {
+    event.currentTarget.removeAttribute("aria-invalid");
+    if ($("#authFeedback").dataset.status === "error") setFeedback("");
+  });
+});
 
 async function handleLogout() {
   if (!firebaseAuth || !authSdk || !authenticatedUser) return;

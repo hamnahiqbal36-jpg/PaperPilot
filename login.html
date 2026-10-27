@@ -19,6 +19,7 @@
     input { outline: none; }
     input:focus { border-color: #6a35c1; box-shadow: 0 0 0 3px rgb(106 53 193 / 12%); }
     [hidden] { display: none !important; }
+    .login-actions button { min-height: 46px; }
     .google-review-backdrop { background: rgb(25 17 42 / 50%); backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px); }
     .google-review-dialog { box-sizing: border-box; border: 1px solid #e4dced; background: #fff; padding: 28px; color: #1f2937; box-shadow: 0 24px 70px rgb(18 12 32 / 30%); animation: google-review-enter 160ms ease-out; }
     .google-account-row { display: flex; align-items: center; gap: 14px; border: 1px solid #e4dced; border-radius: 16px; background: #faf9fc; padding: 14px; text-align: left; }
@@ -34,6 +35,10 @@
     .google-success-icon { display: grid; width: 58px; height: 58px; place-items: center; margin: 0 auto; border-radius: 50%; background: #e8f7ed; color: #188044; font-size: 32px; font-weight: 800; }
     .required-mark { color: #3f3428; font-weight: 700; }
     @keyframes google-review-enter { from { opacity: 0; transform: translateY(8px) scale(.98); } to { opacity: 1; transform: translateY(0) scale(1); } }
+    @media (max-width: 380px) {
+      main > section.w-full { padding: 22px 18px; }
+      .login-actions.login-actions { grid-template-columns: 1fr; }
+    }
     @media (prefers-reduced-motion: reduce) { .google-review-dialog { animation: none; } }
   </style>
 </head>
@@ -64,25 +69,25 @@
       <form id="emailLoginForm" class="space-y-4">
         <label id="loginNameField" class="block hidden">
           <span class="mb-1.5 block text-sm font-medium">Full Name <span class="required-mark" aria-hidden="true">*</span></span>
-          <input id="loginName" type="text" autocomplete="name" maxlength="80" placeholder="Your full name" class="w-full rounded-xl border border-slate-200 px-4 py-3 transition">
+          <input id="loginName" name="name" type="text" autocomplete="name" maxlength="80" placeholder="Your full name" class="w-full rounded-xl border border-slate-200 px-4 py-3 transition">
         </label>
         <label class="block">
           <span class="mb-1.5 block text-sm font-medium">Email <span class="required-mark" aria-hidden="true">*</span></span>
-          <input id="loginEmail" type="email" autocomplete="email" required aria-describedby="emailHint" placeholder="name@example.com" class="w-full rounded-xl border border-slate-200 px-4 py-3 placeholder:text-slate-400 transition">
+          <input id="loginEmail" name="email" type="email" autocomplete="email" required aria-describedby="emailHint" placeholder="name@example.com" class="w-full rounded-xl border border-slate-200 px-4 py-3 placeholder:text-slate-400 transition">
           <span id="emailHint" class="mt-1.5 block text-xs font-normal text-slate-500">Enter a valid email, for example name@example.com.</span>
         </label>
         <label class="block">
           <span class="mb-1.5 block text-sm font-medium">Password <span class="required-mark" aria-hidden="true">*</span></span>
-          <input id="loginPassword" type="password" autocomplete="current-password" minlength="6" required aria-describedby="passwordHint" placeholder="At least 6 characters" class="w-full rounded-xl border border-slate-200 px-4 py-3 placeholder:text-slate-400 transition">
+          <input id="loginPassword" name="password" type="password" autocomplete="current-password" minlength="6" required aria-describedby="passwordHint" placeholder="At least 6 characters" class="w-full rounded-xl border border-slate-200 px-4 py-3 placeholder:text-slate-400 transition">
           <span id="passwordHint" class="mt-1.5 block text-xs font-normal text-slate-500">Use at least 6 characters.</span>
         </label>
-        <div class="grid grid-cols-2 gap-3 pt-1">
+        <div class="login-actions grid grid-cols-2 gap-3 pt-1">
           <button id="emailLoginSubmit" data-auth-mode="signin" type="submit" class="rounded-xl bg-[#6a35c1] px-4 py-3 font-semibold text-white transition hover:bg-[#5829a6] disabled:cursor-wait disabled:opacity-60">Login</button>
           <button id="createAccountButton" data-auth-mode="signup" type="submit" formnovalidate class="rounded-xl bg-[#ede7ff] px-4 py-3 font-semibold text-[#5427a5] transition hover:bg-[#e2d8ff] disabled:cursor-wait disabled:opacity-60">Create Account</button>
         </div>
       </form>
 
-      <p id="authFeedback" role="status" aria-live="polite" class="mt-4 min-h-5 text-sm text-slate-600"></p>
+      <p id="authFeedback" role="status" aria-live="polite" aria-atomic="true" class="mt-4 min-h-5 text-sm text-slate-600"></p>
       <a href="index.html" class="mt-3 block text-center text-sm font-medium text-[#6a35c1] hover:underline">Back to PaperPilot</a>
     </section>
   </main>
