@@ -137,17 +137,18 @@
         </button>
         <div class="login-divider"><span>or continue with email</span></div>
         <form id="emailLoginForm" class="email-login-form">
-          <label id="loginNameField" class="hidden">Full name <span class="required-mark" aria-hidden="true">*</span>
+          <label id="loginNameField" class="hidden"><span class="field-label-text">Full name <span class="required-mark" aria-hidden="true">*</span></span>
             <input id="loginName" type="text" autocomplete="name" maxlength="80">
           </label>
-          <label>Email <span class="required-mark" aria-hidden="true">*</span>
+          <label><span class="field-label-text">Email <span class="required-mark" aria-hidden="true">*</span></span>
             <input id="loginEmail" type="email" autocomplete="email" required aria-describedby="loginEmailHint" placeholder="name@example.com">
             <span id="loginEmailHint" class="field-hint">Example: name@example.com</span>
           </label>
-          <label>Password <span class="required-mark" aria-hidden="true">*</span>
+          <label><span class="field-label-text">Password <span class="required-mark" aria-hidden="true">*</span></span>
             <input id="loginPassword" type="password" autocomplete="current-password" minlength="6" required aria-describedby="loginPasswordHint" placeholder="At least 6 characters">
             <span id="loginPasswordHint" class="field-hint">Use at least 6 characters.</span>
           </label>
+          <button class="forgot-password-button" id="forgotPasswordButton" type="button">Forgot password?</button>
           <button class="primary-btn" id="emailLoginSubmit" type="submit">Sign in</button>
         </form>
         <button class="auth-mode-toggle" id="authModeToggle" type="button">Create an account</button>
@@ -246,7 +247,7 @@
           <option>PPT</option>
           <option>Past Papers</option>
           <option>Books</option>
-          <option>Viva Questions</option>
+          <option>Viva Q:</option>
         </select>
       </div>
       <div id="libraryList" class="resource-list"></div>
@@ -270,10 +271,10 @@
         </div>
 
         <div class="form-grid">
-          <label>Uploaded By / Full Name <span class="required-mark" aria-hidden="true">*</span>
+          <label><span class="field-label-text">Uploaded By / Full Name <span class="required-mark" aria-hidden="true">*</span></span>
             <input id="uploaderName" required placeholder="Your full name" autocomplete="name">
           </label>
-          <label>Department <span class="required-mark" aria-hidden="true">*</span>
+          <label><span class="field-label-text">Department <span class="required-mark" aria-hidden="true">*</span></span>
             <select id="uploadDepartment" required>
               <option value="">Select department</option>
               <option value="CS">CS</option><option value="SE">SE</option>
@@ -284,7 +285,7 @@
               <option value="Textile Engineering">Textile Engineering</option>
             </select>
           </label>
-          <label>Semester <span class="required-mark" aria-hidden="true">*</span>
+          <label><span class="field-label-text">Semester <span class="required-mark" aria-hidden="true">*</span></span>
             <select id="uploadSemester" required disabled>
               <option value="">Select department first</option>
               <option value="1">Semester 1</option><option value="2">Semester 2</option>
@@ -294,7 +295,7 @@
             </select>
           </label>
           <div class="form-grid-field">
-            <label for="uploadSubject">Subject <span class="required-mark" aria-hidden="true">*</span></label>
+            <label for="uploadSubject" class="field-label-text">Subject <span class="required-mark" aria-hidden="true">*</span></label>
             <select id="uploadSubject" required disabled aria-label="Subject">
               <option value="">Select semester first</option>
             </select>

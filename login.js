@@ -53,15 +53,29 @@ function authErrorMessage(error) {
       return "This account has been disabled. Contact the site administrator.";
     case "auth/popup-closed-by-user":
     case "auth/cancelled-popup-request":
-      return "Google sign-in was cancelled.";
+      return "The Google sign-in window closed before you finished. Choose an account and try again.";
     case "auth/network-request-failed":
       return "A network error interrupted sign-in. Check your connection and try again.";
     case "auth/operation-not-allowed":
-      return "Enable this sign-in method in Firebase Authentication settings.";
+      return "Google sign-in is not enabled yet. In Firebase Console, open Authentication > Sign-in method and enable Google.";
     case "auth/unauthorized-domain":
-      return "Open PaperPilot at http://localhost:5500. If you use http://127.0.0.1:5500 instead, add 127.0.0.1 in Firebase Console > Authentication > Settings > Authorized domains.";
+      return `This site is not authorized for Google sign-in (${window.location.hostname}). Add this hostname in Firebase Console > Authentication > Settings > Authorized domains, then reload PaperPilot.`;
     case "auth/popup-blocked":
-      return "Allow pop-ups for this site and try Google sign-in again.";
+      return "Your browser blocked the Google sign-in window. Allow pop-ups for this site, then try again.";
+    case "auth/web-storage-unsupported":
+      return "Google sign-in needs browser storage. Enable cookies and site data for this site, then try again.";
+    case "auth/timeout":
+      return "Google sign-in took too long. Check your connection and try again.";
+    case "auth/account-exists-with-different-credential":
+      return "An account already exists with this email. Sign in using the method you used when you created it.";
+    case "auth/credential-already-in-use":
+      return "This Google account is already linked to another PaperPilot account. Sign in with that account instead.";
+    case "auth/invalid-api-key":
+      return "Google sign-in could not start because the Firebase API key is invalid. Check the Firebase configuration.";
+    case "auth/app-not-authorized":
+      return "This PaperPilot app is not authorized in Firebase. Check the Firebase project and authorized domains.";
+    case "auth/operation-not-supported-in-this-environment":
+      return "Google sign-in needs a supported browser window. Allow pop-ups and open PaperPilot over localhost or HTTPS.";
     case "auth/internal-error":
       return "Firebase encountered an internal error. Check your Firebase configuration and try again.";
     default:
@@ -110,13 +124,25 @@ function setBusy(isBusy, isGoogleSignIn = false) {
   }
   $("#emailLoginSubmit").disabled = isBusy;
   $("#createAccountButton")?.toggleAttribute("disabled", isBusy);
+  $("#forgotPasswordButton")?.toggleAttribute("disabled", isBusy);
   $("#authModeToggle")?.toggleAttribute("disabled", isBusy);
+}
+
+function setAuthAvailability(isAvailable, unavailableLabel = "Sign-in unavailable") {
+  $("#google-login-btn").disabled = !isAvailable;
+  $("#google-login-label").textContent = isAvailable
+    ? "Continue with Google"
+    : unavailableLabel;
+  $("#emailLoginSubmit").disabled = !isAvailable;
+  $("#createAccountButton")?.toggleAttribute("disabled", !isAvailable);
+  $("#forgotPasswordButton")?.toggleAttribute("disabled", !isAvailable);
 }
 
 function setAuthMode(mode) {
   authMode = mode;
   const isSignup = mode === "signup";
   $("#loginNameField").classList.toggle("hidden", !isSignup);
+  $("#forgotPasswordButton")?.classList.toggle("hidden", isSignup);
   $("#loginName").required = isSignup && document.body.dataset.authPage !== "login";
   $("#loginPassword").autocomplete = isSignup ? "new-password" : "current-password";
   const submitButton = $("#emailLoginSubmit");
@@ -393,6 +419,47 @@ async function handleEmailLogin(event) {
   }
 }
 
+async function handleForgotPassword() {
+  const emailField = $("#loginEmail");
+  const email = emailField.value.trim();
+  emailField.removeAttribute("aria-invalid");
+
+  if (!email || !emailField.validity.valid) {
+    setFeedback(email ? "Enter a valid email address, then choose Forgot password?" : "Enter your email address first so we can send a reset link.", "error");
+    markInvalidField(emailField);
+    emailField.focus();
+    return;
+  }
+  if (window.location.protocol === "file:") {
+    setFeedback("Password reset needs an HTTP or HTTPS address. Open PaperPilot through localhost or its hosted website.", "error");
+    return;
+  }
+  if (!authReady || !firebaseAuth || !authSdk) {
+    setFeedback(authReady
+      ? "Firebase is not configured. Check firebase.js and Firebase Authentication settings."
+      : "Firebase is still loading. Please try again in a moment.", "error");
+    return;
+  }
+
+  setBusy(true);
+  setFeedback("Sending password reset instructions...");
+  try {
+    await authSdk.sendPasswordResetEmail(firebaseAuth, email);
+    setFeedback("If there’s a PaperPilot account for this email, password reset instructions have been sent. Check your inbox and spam folder.", "success");
+  } catch (error) {
+    console.error("PaperPilot password reset failed:", error);
+    if (error?.code === "auth/invalid-email") {
+      markInvalidField(emailField);
+      emailField.focus();
+    }
+    setFeedback(error?.code === "auth/user-not-found"
+      ? "We couldn’t find an account for that email. Check the address or create an account."
+      : authErrorMessage(error), "error");
+  } finally {
+    setBusy(false);
+  }
+}
+
 ["#loginName", "#loginEmail", "#loginPassword"].forEach(selector => {
   $(selector).addEventListener("input", event => {
     event.currentTarget.removeAttribute("aria-invalid");
@@ -482,6 +549,7 @@ async function handleLogout() {
 }
 
 $("#google-login-btn").addEventListener("click", handleGoogleLogin);
+$("#forgotPasswordButton")?.addEventListener("click", handleForgotPassword);
 initializeGoogleAccountConfirmation();
 $("#emailLoginForm").addEventListener("submit", handleEmailLogin);
 $("#authModeToggle")?.addEventListener("click", () => {
@@ -493,6 +561,7 @@ $("#userAvatar")?.addEventListener("click", () => {
 });
 
 setAuthMode("signin");
+setFeedback("Connecting securely...");
 
 async function initializeAuth() {
   try {
@@ -507,10 +576,13 @@ async function initializeAuth() {
 
     if (!firebaseAuth) {
       updateAuthUI(null);
+      setAuthAvailability(false);
       setFeedback("Firebase is not configured. Check firebase.js and Firebase Authentication settings.", "error");
       return;
     }
 
+    setAuthAvailability(true);
+    setFeedback("");
     authSdk.onAuthStateChanged(firebaseAuth, user => {
       if (googleReviewActive) return;
       const hadUser = Boolean(authenticatedUser);
@@ -532,12 +604,14 @@ async function initializeAuth() {
     }, error => {
       console.error("Could not verify the PaperPilot Firebase session:", error);
       updateAuthUI(null);
+      setAuthAvailability(false);
       setFeedback("Could not verify your Firebase session. Reload the page and try again.", "error");
     });
   } catch (error) {
     console.error("PaperPilot Firebase initialization failed:", error);
     authReady = true;
     updateAuthUI(null);
+    setAuthAvailability(false);
     setFeedback("Firebase could not load. Check your internet connection, firebase.js configuration, and open the site through localhost or HTTPS.", "error");
   }
 }
@@ -546,5 +620,6 @@ initializeAuth();
 
 if (window.location.protocol === "file:") {
   updateAuthUI(null);
+  setAuthAvailability(false, "Open PaperPilot on localhost");
   setFeedback("Firebase sign-in requires HTTP or HTTPS. Run PaperPilot with Live Server and add localhost to Firebase Authorized domains.", "error");
 }

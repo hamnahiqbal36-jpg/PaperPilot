@@ -506,14 +506,16 @@ function initializeStyledSelects() {
 
   $$("select").forEach(select => {
     const label = select.closest("label");
+    const requiredMarker = label?.querySelector(".required-mark");
+    const labelTextElement = label?.querySelector(".field-label-text");
+    const labelTextSource = labelTextElement || label;
     const labelText = label
-      ? [...label.childNodes]
-        .filter(node => node.nodeType === Node.TEXT_NODE)
+      ? [...labelTextSource.childNodes]
+        .filter(node => node.nodeType === Node.TEXT_NODE && node !== requiredMarker)
         .map(node => node.textContent.trim())
         .join(" ")
         .replace(/\s+/g, " ")
       : "";
-    const requiredMarker = label?.querySelector(".required-mark");
     const accessibleLabel = requiredMarker ? `${labelText} *` : labelText;
     const accessibleName = select.getAttribute("aria-label") ||
       accessibleLabel || fallbackLabels[select.id] || "Choose an option";
