@@ -252,20 +252,20 @@ h3 { font-size: 16px; margin-bottom: 8px; }
 .login-requirement {
   width: 100%;
   padding: 14px 16px;
-  border: 1px solid #d9c9f3;
+  border: 1px solid #e6a3a3;
   border-radius: 12px;
-  background: #f5f0ff;
-  color: #38235d;
+  background: #fff1f1;
+  color: #8b2525;
   text-align: left;
 }
 .login-requirement strong { display: block; font-size: 13px; line-height: 1.4; }
-.login-requirement p { margin: 5px 0 0; color: #55486a; font-size: 12px; line-height: 1.55; }
+.login-requirement p { margin: 5px 0 0; color: #853838; font-size: 12px; line-height: 1.55; }
 body[data-theme="dark"] .login-requirement {
-  border-color: #51416f;
-  background: #302941;
-  color: #e7dcff;
+  border-color: #8e4a4a;
+  background: #3a2528;
+  color: #ffdada;
 }
-body[data-theme="dark"] .login-requirement p { color: #c9bddc; }
+body[data-theme="dark"] .login-requirement p { color: #f0bcbc; }
 .google-login-button { display: flex; align-items: center; justify-content: center; gap: 10px; width: 100%; background: #6A35C1; border-color: #6A35C1; }
 .google-mark { display: grid; place-items: center; width: 20px; height: 20px; border-radius: 50%; background: #fff; color: #6A35C1; font-size: 13px; font-weight: 800; }
 .login-divider { display: flex; align-items: center; gap: 12px; width: 100%; color: var(--muted); font-size: 11px; }

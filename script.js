@@ -748,7 +748,11 @@ function showPage(pageId, heading, updateHistory = true) {
   });
 
   const topHeading = $("#topHeading");
-  if (topHeading) topHeading.textContent = heading;
+  if (topHeading) {
+    topHeading.textContent = ["semesterSubjectsPage", "subjectPage"].includes(pageId)
+      ? ""
+      : heading;
+  }
   $("#searchResults").classList.add("hidden");
 
   window.scrollTo({ top: 0, behavior: "smooth" });
@@ -839,7 +843,7 @@ function openDepartment(departmentName, updateHistory = true) {
   if (!department) return;
 
   selectedDepartment = departmentName;
-  selectedSemester = 1;
+  selectedSemester = 0;
 
   $("#departmentTitle").textContent = `${department.name} (${department.degree})`;
   $("#departmentDescription").textContent =
